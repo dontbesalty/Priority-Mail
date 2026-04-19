@@ -59,7 +59,10 @@ export async function fetchEmails(
   const auth = buildOAuthClient();
   const gmail = google.gmail({ version: "v1", auth });
 
-  const query = options.query ?? "in:inbox is:unread";
+  // Compute timestamp for 24 hours ago (Unix seconds)
+  const afterTimestamp = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
+  const defaultQuery = `in:inbox is:unread after:${afterTimestamp}`;
+  const query = options.query ?? defaultQuery;
   const maxResults = options.maxResults ?? parseInt(FETCH_LIMIT ?? "20", 10);
 
   console.log(`\n📬  Fetching up to ${maxResults} emails (query: "${query}")…`);

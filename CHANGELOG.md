@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Time‑based email fetch** — Both Gmail and Outlook connectors now fetch only emails from the last 24 hours, replacing the simple `FETCH_LIMIT=20` count limit.
+  - Gmail filter: `in:inbox is:unread after:{unix_timestamp}`
+  - Outlook filter: `isRead eq false and receivedDateTime ge {iso_timestamp}`
+- Increased default `FETCH_LIMIT` from 20 to 200 in `.env.example` and `.env` files to accommodate high‑volume 24‑hour windows.
+- Gmail connector logs the constructed query; Outlook connector logs the Graph API `$filter`.
+
 _Changes staged but not yet released._
 
 ---

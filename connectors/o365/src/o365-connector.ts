@@ -52,14 +52,20 @@ export async function fetchEmails(): Promise<NormalizedEmail[]> {
   const limit = parseInt(process.env.FETCH_LIMIT ?? "20");
   const accountEmail = process.env.OUTLOOK_ACCOUNT_EMAIL ?? "";
 
+  // Compute ISO timestamp for 24 hours ago (Zulu/UTC)
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const isoThreshold = twentyFourHoursAgo.toISOString();
+  const filter = `isRead eq false and receivedDateTime ge ${isoThreshold}`;
+
   console.log(
     `\n📬  Fetching up to ${limit} unread Outlook emails (${accountEmail || "account not set"})…`
   );
+  console.log(`   Filter: ${filter}`);
 
   const accessToken = await getAccessToken();
 
   const params = new URLSearchParams({
-    $filter: "isRead eq false",
+    $filter: filter,
     $top: String(limit),
     $select: [
       "id", "subject", "from", "toRecipients",

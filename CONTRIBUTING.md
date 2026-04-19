@@ -12,12 +12,13 @@
 
 | Branch pattern | Purpose |
 |---|---|
-| `main` | Stable, deployable state |
-| `feature/<name>` | New features |
+| `main` | Stable, production-ready state |
+| `dev` | Integration branch for features, reflects next release |
+| `feature/<name>` | New features, branched from `dev` |
 | `fix/<name>` | Bug fixes |
 | `chore/<name>` | Refactors, dependency updates, tooling |
 
-Always branch off `main`. Keep branches short-lived.
+Always branch off `dev`. Keep branches short-lived.
 
 ---
 
