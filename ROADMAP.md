@@ -38,6 +38,7 @@ Planned phases and features for Priority Mail. Status reflects current progress.
 
 ## 🔄 Phase 3 — Smart Inbox _(up next)_
 
+- [ ] Running Task List: Add suggested tasks from emails to a persistent list ([Plan](docs/task-list-feature.md))
 - [ ] Auto-refresh or on-demand refresh button in the dashboard
 - [ ] Filter/sort by priority, category, date
 - [ ] Daily digest view — summary of unread High + Medium emails

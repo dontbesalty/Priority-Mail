@@ -11,6 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - **Task List Feature** — Initial setup of the feature branch for task management and list views.
+- **Detailed development plan** for the "Running Task List" feature (`docs/task-list-feature.md`).
 
 ### Changed
 
