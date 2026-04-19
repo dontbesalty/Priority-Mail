@@ -1,0 +1,114 @@
+# ── Priority Mail — Full Stack ─────────────────────────────────────────────────
+#
+# Services:
+#   postgres         — PostgreSQL 16 database
+#   redis            — Redis 7 (queue / caching, for future use)
+#   backend          — Express REST API (port 4000)
+#   frontend         — Next.js dashboard (port 3000)
+#   gmail-connector  — One-shot job: fetch + triage + ingest emails
+#
+# Usage:
+#   1. Copy connectors/gmail/.env.example → connectors/gmail/.env and fill in values
+#   2. Run the full stack:        docker compose up -d postgres backend frontend
+#   3. Fetch and triage emails:   docker compose run --rm gmail-connector
+#   4. Open the dashboard:        http://localhost:3000
+#
+# Auth (first time only, runs locally not in Docker):
+#   cd connectors/gmail && npm run auth
+# ──────────────────────────────────────────────────────────────────────────────
+
+networks:
+  prioritymail:
+    driver: bridge
+
+volumes:
+  pgdata:
+
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks: [prioritymail]
+    environment:
+      POSTGRES_DB: prioritymail
+      POSTGRES_USER: pm_user
+      POSTGRES_PASSWORD: pm_pass
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pm_user -d prioritymail"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [prioritymail]
+    ports:
+      - "6379:6379"
+
+  # ── Backend API ──────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    networks: [prioritymail]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: "4000"
+      DATABASE_URL: postgres://pm_user:pm_pass@postgres:5432/prioritymail
+    ports:
+      - "4000:4000"
+
+  # ── Frontend (Next.js) ───────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    networks: [prioritymail]
+    depends_on:
+      - backend
+    environment:
+      # Used by Next.js rewrites at runtime to proxy /api/* → backend
+      BACKEND_URL: http://backend:4000
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+
+  # ── Gmail Connector (one-shot) ───────────────────────────────────────────────
+  # Run with:  docker compose run --rm gmail-connector
+  gmail-connector:
+    build:
+      context: ./connectors/gmail
+    networks: [prioritymail]
+    env_file:
+      - ./connectors/gmail/.env
+    environment:
+      # After fetching + triaging, POST results to the backend
+      BACKEND_URL: http://backend:4000
+    volumes:
+      # Persist triaged.json output for debugging
+      - ./connectors/gmail/output:/app/output
+
+  # ── O365 / Outlook Connector (one-shot) ──────────────────────────────────────
+  # One-time auth (run locally, not in Docker):
+  #   cd connectors/o365 && npm run auth
+  # Run with:  docker compose run --rm o365-connector
+  o365-connector:
+    build:
+      context: ./connectors/o365
+    networks: [prioritymail]
+    env_file:
+      - ./connectors/o365/.env
+    environment:
+      BACKEND_URL: http://backend:4000
+    volumes:
+      - ./connectors/o365/output:/app/output

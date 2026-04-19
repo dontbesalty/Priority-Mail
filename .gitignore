@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+
+# Production
+dist/
+build/
+.next/
+out/
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+connectors/gmail/.env
+connectors/o365/.env
+frontend/.env
+
+# OS Files
+.DS_Store
+Thumbs.db
+*.lnk
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Editor/IDE
+.vscode/*
+!.vscode/extensions.json
+.clinerules/
+.idea/
+*.swp
+*.swo
+
+# Project Specific
+connectors/*/dist/
+connectors/*/output/
+backend/dist/
+
+# Docker
+.dockerignore
+!**/Dockerfile
+!**/docker-compose.yml
+
+# AI
+.clinerules
