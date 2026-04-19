@@ -23,6 +23,7 @@ The primary way to run the full stack is via Docker Compose. All services are de
 | `backend` | Built from `./backend` | `4000` | Waits for Postgres healthcheck |
 | `frontend` | Built from `./frontend` | `3000` | Depends on backend |
 | `gmail-connector` | Built from `./connectors/gmail` | — | One-shot job, no persistent port |
+| `o365-connector` | Built from `./connectors/o365` | — | One-shot job, no persistent port |
 
 ### Network
 
@@ -34,6 +35,7 @@ All services run on the `prioritymail` Docker bridge network. Internal hostnames
 2. `backend` — waits for `postgres` healthcheck to pass, then auto-migrates schema
 3. `frontend` — waits for `backend` to be up
 4. `gmail-connector` — run manually on demand
+5. `o365-connector` — run manually on demand
 
 ---
 
@@ -56,6 +58,12 @@ docker compose logs -f backend
 
 ```bash
 docker compose run --rm gmail-connector
+```
+
+### Run the O365 connector (fetch + triage + ingest)
+
+```bash
+docker compose run --rm o365-connector
 ```
 
 ### Stop all services

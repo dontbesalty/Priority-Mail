@@ -15,12 +15,14 @@
         ▼
 [ PostgreSQL — port 5432 ]
 
-[ Gmail Connector — one-shot job ]
-        │  Gmail API (OAuth2)
-        ▼
-[ Google Gmail API ]
-        │  normalized emails
-        ▼
+[ Gmail Connector — one-shot job ]     [ O365 Connector — one-shot job ]
+        │  Gmail API (OAuth2)                   │  Microsoft Graph API (PKCE)
+        ▼                                       ▼
+[ Google Gmail API ]               [ Microsoft Graph API ]
+        │                                       │
+        └─────────────┬─────────────────────────┘
+                      │  NormalizedEmail (source + accountEmail)
+                      ▼
 [ Rules Engine ]          ← deterministic, no external calls
         │  skip_ai=false
         ▼
@@ -61,6 +63,20 @@ fetchEmails() → NormalizedEmail[]
   → postToBackend()      → POST /emails/ingest
 ```
 
+### `connectors/o365` — Outlook / O365 Connector
+
+Runs as a **one-shot Docker job**. Entry point: `src/index.ts`.
+
+| File | Responsibility |
+|---|---|
+| `auth.ts` | One-time PKCE authorization code flow — prints refresh token for `.env` |
+| `o365-connector.ts` | Exchanges refresh token for access token, fetches unread messages via Graph API |
+| `normalize.ts` | Converts raw Graph API message objects → `NormalizedEmail` (`source: "o365"`) |
+| `rules-engine.ts` | Same rules engine as Gmail connector (copied) |
+| `ai-classifier.ts` | Same AI classifier as Gmail connector (copied) |
+| `triage-pipeline.ts` | Same triage pipeline as Gmail connector (copied) |
+| `index.ts` | Entry point: fetch → triage → write `output/triaged.json` → POST to backend |
+
 ### `backend` — REST API
 
 Node.js + Express, TypeScript. Entry point: `src/server.ts`.
@@ -89,20 +105,22 @@ Next.js 14 App Router, TypeScript, Tailwind CSS.
 
 ### `NormalizedEmail`
 
-Produced by `normalize.ts` from raw Gmail API responses.
+Produced by each connector's `normalize.ts`. Shared interface — both Gmail and O365 connectors produce the same shape.
 
 ```typescript
 interface NormalizedEmail {
-  id: string;          // Gmail message ID
-  threadId: string;
+  id: string;           // Provider message ID
+  threadId: string;     // Thread / conversation ID
+  source: "gmail" | "o365";    // Which provider this came from
+  accountEmail: string; // The mailbox address (e.g. "you@gmail.com")
   subject: string;
   from: string;
   to: string;
-  date: string;        // ISO string
-  snippet: string;     // short preview from Gmail
-  body: string;        // clean plain-text body
+  date: string;         // ISO string
+  snippet: string;      // Short preview from the provider
+  body: string;         // Clean plain-text body
   isUnread: boolean;
-  labels: string[];    // Gmail label IDs
+  labels: string[];     // Gmail label IDs or O365 categories
 }
 ```
 
@@ -180,5 +198,6 @@ All services run on the `prioritymail` bridge network. Internal service names re
 | `backend` | `backend` | `4000` |
 | `frontend` | `frontend` | `3000` |
 | `gmail-connector` | `gmail-connector` | — (one-shot) |
+| `o365-connector` | `o365-connector` | — (one-shot) |
 
 The backend is never exposed directly when running behind the frontend proxy in production.

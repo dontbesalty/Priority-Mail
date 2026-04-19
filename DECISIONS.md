@@ -30,7 +30,7 @@ Key technical and product decisions made during the development of Priority Mail
 
 **Rationale:** Developer has a Gmail account available for testing. Gmail's label system (`CATEGORY_PROMOTIONS`, etc.) provides a free pre-filter that improves triage quality. Outlook support is planned for a later phase.
 
-**Status:** Active. Outlook planned for Phase 6.
+**Status:** Active. Outlook connector shipped in 0.4.0 (see ADR-011).
 
 ---
 
@@ -101,3 +101,15 @@ Key technical and product decisions made during the development of Priority Mail
 **Rationale:** SSR means no loading spinners on initial render and no need for a client-side state management layer for the read path. The proxy rewrite avoids CORS issues and keeps the frontend URL scheme clean.
 
 **Status:** Active.
+
+---
+
+## ADR-011 — Multi-source support via `source` + `account_email` fields
+
+**Decision:** Rather than scoping email IDs by provider (e.g. prefixing `gmail:` or `o365:`), each email row carries a `source` (`"gmail"` | `"o365"`) and `account_email` (the mailbox address) column. The primary key remains the raw provider message ID.
+
+**Rationale:** Provider message IDs are unique within their own namespace and will not collide in a single-user deployment. Adding source context as metadata keeps the primary key clean and avoids breaking existing queries or URL structures. The `source` column enables filtering and per-provider badge display in the UI without schema redesign.
+
+**Trade-off:** If two providers ever issued the same message ID (extremely unlikely), the second upsert would overwrite the first. Accepted as a reasonable risk for a single-user MVP; a composite primary key (`id, source`) can be introduced later if needed.
+
+**Status:** Active. Introduced in 0.4.0.

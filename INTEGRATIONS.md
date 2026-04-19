@@ -157,11 +157,54 @@ Redis 7 is included in the Docker Compose stack but no application code currentl
 
 ---
 
+## Microsoft Graph API (Outlook / O365)
+
+**Status:** Active (since 0.4.0)  
+**Used by:** `connectors/o365`  
+**Purpose:** Fetch unread emails from a Microsoft Outlook / O365 inbox
+
+### Authentication
+
+OAuth2 Authorization Code flow with PKCE (no client secret required — works with public app registrations).
+
+- `OUTLOOK_CLIENT_ID` — from Azure App Registration
+- `OUTLOOK_TENANT_ID` — `consumers` (personal) or your tenant ID (work/school)
+- `OUTLOOK_REFRESH_TOKEN` — obtained once via `npm run auth` in `connectors/o365/`
+
+The connector exchanges the refresh token for a short-lived access token on each run. No token cache is stored.
+
+### Setup
+
+1. Register an app at [portal.azure.com](https://portal.azure.com) → **Azure Active Directory → App registrations**
+2. Add a redirect URI: `http://localhost:3001/callback` (type: **Public client / native**)
+3. Grant API permissions: `Mail.Read` and `User.Read` (delegated)
+4. Copy the Application (client) ID into `connectors/o365/.env` as `OUTLOOK_CLIENT_ID`
+5. Run `npm run auth` in `connectors/o365/` to complete the PKCE flow and obtain the refresh token
+6. Add `OUTLOOK_REFRESH_TOKEN=...` and `OUTLOOK_ACCOUNT_EMAIL=...` to `connectors/o365/.env`
+
+### Configuration
+
+| Env Var | Description |
+|---|---|
+| `OUTLOOK_CLIENT_ID` | Azure app client ID |
+| `OUTLOOK_TENANT_ID` | `consumers` (personal) or AAD tenant ID (work/school) |
+| `OUTLOOK_ACCOUNT_EMAIL` | Outlook address being authorized |
+| `OUTLOOK_REFRESH_TOKEN` | Refresh token (set after `npm run auth`) |
+| `FETCH_LIMIT` | Max emails to fetch per run (default: `20`) |
+| `AUTH_PORT` | Local callback port for the one-time auth flow (default: `3001`) |
+
+### Notes
+
+- The connector has read-only access — it does not modify, archive, or send any emails
+- Microsoft Graph `$filter=isRead eq false` is used to fetch only unread messages
+- Emails are normalized to the same `NormalizedEmail` interface as the Gmail connector with `source: "o365"`
+
+---
+
 ## Planned Integrations (Not Yet Implemented)
 
 | Integration | Phase | Purpose |
 |---|---|---|
-| Microsoft Graph API / Outlook | Phase 6 | Second email provider |
 | Gmail Push Notifications (Pub/Sub) | Phase 5 | Real-time email delivery instead of polling |
 | Todoist | Phase 6 | Create tasks from email suggestions |
 | Linear | Phase 6 | Create issues from email suggestions |

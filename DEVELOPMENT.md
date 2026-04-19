@@ -4,9 +4,8 @@
 
 - Node.js 18+
 - Docker + Docker Compose
-- A Google Cloud project with:
-  - Gmail API enabled
-  - OAuth 2.0 credentials (Desktop app type)
+- **For Gmail connector:** A Google Cloud project with Gmail API enabled and OAuth 2.0 credentials (Desktop app type)
+- **For O365 connector:** An Azure App Registration with `Mail.Read` + `User.Read` delegated permissions
 - An [OpenRouter](https://openrouter.ai) API key
 
 ---
@@ -16,7 +15,8 @@
 ```
 priorityMail/
 ├── connectors/
-│   └── gmail/          # Gmail connector + Rules Engine + AI Classifier
+│   ├── gmail/          # Gmail connector + Rules Engine + AI Classifier
+│   └── o365/           # Outlook / O365 connector (Graph API)
 ├── backend/            # Express REST API
 ├── frontend/           # Next.js dashboard
 ├── docs/               # Planning documents
@@ -56,7 +56,32 @@ npm run auth
 
 Follow the prompts and copy the printed `GMAIL_REFRESH_TOKEN` into `connectors/gmail/.env`.
 
-### 3. Configure the backend (optional for local dev)
+### 3. Configure the O365 connector (optional — skip if not using Outlook)
+
+```bash
+cp connectors/o365/.env.example connectors/o365/.env
+```
+
+Edit `connectors/o365/.env`:
+
+```env
+OUTLOOK_CLIENT_ID=<from Azure App Registration>
+OUTLOOK_TENANT_ID=consumers
+OUTLOOK_ACCOUNT_EMAIL=you@outlook.com
+OPENROUTER_API_KEY=sk-or-...
+```
+
+Then run the one-time PKCE auth flow locally:
+
+```bash
+cd connectors/o365
+npm install
+npm run auth
+```
+
+Copy the printed `OUTLOOK_REFRESH_TOKEN` into `connectors/o365/.env`.
+
+### 4. Configure the backend (optional for local dev)
 
 ```bash
 cp backend/.env.example backend/.env
@@ -71,8 +96,11 @@ cp backend/.env.example backend/.env
 # Start persistent services
 docker compose up -d postgres backend frontend
 
-# Fetch and triage emails (runs once, then exits)
+# Fetch and triage Gmail emails (runs once, then exits)
 docker compose run --rm gmail-connector
+
+# Fetch and triage Outlook emails (runs once, then exits)
+docker compose run --rm o365-connector
 
 # Open the dashboard
 open http://localhost:3000
@@ -117,6 +145,14 @@ npm install
 npm run dev      # Fetches emails, runs triage, writes output/triaged.json
 ```
 
+### O365 Connector
+
+```bash
+cd connectors/o365
+npm install
+npm run dev      # Fetches Outlook emails, runs triage, writes output/triaged.json
+```
+
 ---
 
 ## Available Scripts
@@ -126,6 +162,14 @@ npm run dev      # Fetches emails, runs triage, writes output/triaged.json
 | Command | Description |
 |---|---|
 | `npm run auth` | One-time OAuth2 flow — prints refresh token |
+| `npm run dev` | Run the triage pipeline locally |
+| `npm run build` | Compile TypeScript to `dist/` |
+
+### `connectors/o365`
+
+| Command | Description |
+|---|---|
+| `npm run auth` | One-time PKCE flow — prints refresh token |
 | `npm run dev` | Run the triage pipeline locally |
 | `npm run build` | Compile TypeScript to `dist/` |
 
@@ -165,6 +209,22 @@ npm run dev      # Fetches emails, runs triage, writes output/triaged.json
 | `FETCH_LIMIT` | — | Max emails to fetch per run (default: `20`) |
 | `AUTH_PORT` | — | Port for one-time auth callback (default: `3000`) |
 
+### `connectors/o365/.env`
+
+| Variable | Required | Description |
+|---|---|---|
+| `OUTLOOK_CLIENT_ID` | ✅ | Azure app client ID |
+| `OUTLOOK_TENANT_ID` | ✅ | `consumers` (personal) or AAD tenant ID |
+| `OUTLOOK_ACCOUNT_EMAIL` | ✅ | Outlook address being authorized |
+| `OUTLOOK_REFRESH_TOKEN` | ✅ | Set after running `npm run auth` |
+| `OPENROUTER_API_KEY` | ✅ | OpenRouter API key |
+| `OPENROUTER_MODEL` | — | AI model (default: `meta-llama/llama-3.1-8b-instruct:free`) |
+| `LOCAL_AI_URL` | — | Ollama base URL for confidential emails |
+| `LOCAL_AI_MODEL` | — | Local model name (default: `llama3.2`) |
+| `BACKEND_URL` | — | If set, POSTs results to this URL after triage |
+| `FETCH_LIMIT` | — | Max emails to fetch per run (default: `20`) |
+| `AUTH_PORT` | — | Local callback port for auth flow (default: `3001`) |
+
 ### `backend/.env`
 
 | Variable | Required | Description |
@@ -201,13 +261,14 @@ LOCAL_AI_URL=http://host.docker.internal:11434/v1
 
 ## Inspecting Output
 
-After running the Gmail connector, triage results are written to:
+After running either connector, triage results are written locally:
 
 ```
 connectors/gmail/output/triaged.json
+connectors/o365/output/triaged.json
 ```
 
-This file is also mounted into the Docker container via a volume, so it's accessible on the host machine regardless of how the connector is run.
+Both output directories are mounted into their respective Docker containers, so files are accessible on the host machine regardless of how the connector is run.
 
 ---
 

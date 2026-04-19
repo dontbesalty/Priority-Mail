@@ -36,7 +36,7 @@ File: `backend/src/db/schema.sql`
 
 ```sql
 CREATE TABLE IF NOT EXISTS emails (
-  id              TEXT PRIMARY KEY,      -- Gmail message ID
+  id              TEXT PRIMARY KEY,      -- provider message ID (primary key)
   thread_id       TEXT,
   subject         TEXT NOT NULL DEFAULT '',
   from_address    TEXT NOT NULL DEFAULT '',
@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS emails (
   snippet         TEXT,
   labels          TEXT[],                -- Gmail label IDs
   is_unread       BOOLEAN DEFAULT TRUE,
+
+  -- Source tracking (multi-provider)
+  source          TEXT DEFAULT 'gmail',   -- "gmail" | "o365"
+  account_email   TEXT DEFAULT '',        -- mailbox address
 
   -- AI / Rules classification
   priority        TEXT CHECK (priority IN ('High','Medium','Low')),
@@ -82,16 +86,18 @@ CREATE INDEX IF NOT EXISTS idx_emails_is_unread   ON emails (is_unread);
 
 | Column | Type | Description |
 |---|---|---|
-| `id` | TEXT | Gmail message ID — primary key |
-| `thread_id` | TEXT | Gmail thread ID |
+| `id` | TEXT | Provider message ID — primary key |
+| `thread_id` | TEXT | Thread / conversation ID |
 | `subject` | TEXT | Email subject line |
 | `from_address` | TEXT | Sender (may include display name, e.g. `Alice <alice@example.com>`) |
 | `to_address` | TEXT | Recipient |
 | `received_at` | TIMESTAMPTZ | Message date parsed from headers |
 | `body` | TEXT | Clean plain-text body (HTML stripped, quoted history removed) |
-| `snippet` | TEXT | Short preview from Gmail API |
-| `labels` | TEXT[] | Gmail label IDs (e.g. `["INBOX", "UNREAD", "CATEGORY_PROMOTIONS"]`) |
-| `is_unread` | BOOLEAN | Whether the email is unread in Gmail at time of fetch |
+| `snippet` | TEXT | Short preview from the provider |
+| `labels` | TEXT[] | Gmail label IDs or O365 categories (e.g. `["INBOX", "UNREAD"]`) |
+| `is_unread` | BOOLEAN | Whether the email is unread at time of fetch |
+| `source` | TEXT | `"gmail"` \| `"o365"` — which provider this email came from |
+| `account_email` | TEXT | The mailbox address (e.g. `"you@gmail.com"`) |
 
 ### Classification Fields
 
@@ -170,3 +176,5 @@ The volume survives `docker compose down` and is only removed with `docker compo
 There is currently no migration framework. The schema is applied via a single `schema.sql` file on startup using `CREATE TABLE IF NOT EXISTS`. 
 
 **Adding new columns:** Add the column to `schema.sql`. For existing deployments the column must be added manually via `ALTER TABLE` until a migration tool is introduced (see `KNOWN_ISSUES.md`).
+
+**0.4.0 migration** — the `source` and `account_email` columns were added in v0.4.0. The backend's `migrate()` function applies these via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statements that are safe to re-run on an existing database.

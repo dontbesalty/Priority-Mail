@@ -35,12 +35,15 @@ Returns a list of triaged emails sorted by priority (High → Medium → Low), t
 |---|---|---|
 | `priority` | `High` \| `Medium` \| `Low` | Filter by priority level |
 | `actioned` | `false` | Omit emails that have already been actioned by the user |
+| `source` | `gmail` \| `o365` | Filter by email provider |
 
 **Example**
 
 ```
 GET /emails?actioned=false
 GET /emails?priority=High&actioned=false
+GET /emails?source=gmail&actioned=false
+GET /emails?source=o365
 ```
 
 **Response** — array of email objects (body field excluded for performance)
@@ -194,8 +197,10 @@ Full email object as returned by `GET /emails/:id`:
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | string | Gmail message ID (primary key) |
-| `thread_id` | string | Gmail thread ID |
+| `id` | string | Provider message ID (primary key) |
+| `thread_id` | string | Thread / conversation ID |
+| `source` | string | `"gmail"` \| `"o365"` — which provider this email came from |
+| `account_email` | string | The mailbox address (e.g. `"you@gmail.com"`) |
 | `subject` | string | Email subject |
 | `from_address` | string | Sender (name + email) |
 | `to_address` | string | Recipient |

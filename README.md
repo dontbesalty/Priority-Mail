@@ -4,11 +4,12 @@ An AI-powered email triage assistant that reads your inbox and helps you decide 
 
 ## What it does
 
-- Fetches unread emails from Gmail via the Gmail API
+- Fetches unread emails from **Gmail** (Google API) and **Outlook / O365** (Microsoft Graph API)
 - Runs a fast, free **Rules Engine** (newsletters, promotions, security alerts) to pre-classify emails without touching the AI
 - Sends remaining emails to an **AI Classifier** (OpenRouter) for priority, category, reasoning, task extraction, and draft reply generation
+- Routes confidential emails to a **local AI** (Ollama-compatible) — they never leave your machine
 - Serves classified emails via a **REST API** (Express + PostgreSQL)
-- Displays them in a clean **Next.js dashboard** sorted by priority
+- Displays them in a clean **Next.js dashboard** sorted by priority — with **All / Gmail / Outlook** filter tabs and per-provider source badges
 
 ## Quick Start (Docker)
 
@@ -50,6 +51,12 @@ docker compose run --rm gmail-connector
 
 Navigate to [http://localhost:3000](http://localhost:3000)
 
+> **Using Outlook instead of (or in addition to) Gmail?**  
+> See [`connectors/o365/README.md`](connectors/o365/README.md) for the Azure App Registration setup and one-time PKCE auth flow, then run:
+> ```bash
+> docker compose run --rm o365-connector
+> ```
+
 ---
 
 ## Project Structure
@@ -57,7 +64,8 @@ Navigate to [http://localhost:3000](http://localhost:3000)
 ```
 priorityMail/
 ├── connectors/
-│   └── gmail/              # Gmail fetcher + Rules Engine + AI Classifier
+│   ├── gmail/              # Gmail fetcher + Rules Engine + AI Classifier
+│   └── o365/               # Outlook / O365 fetcher (Microsoft Graph API)
 ├── backend/                # Express REST API + PostgreSQL
 ├── frontend/               # Next.js dashboard
 ├── docs/                   # Planning and design documents
@@ -73,7 +81,7 @@ priorityMail/
 | Database    | PostgreSQL 16                       |
 | Queue       | Redis 7 (reserved for future use)   |
 | AI          | OpenRouter API (cloud) / Ollama (local) |
-| Email       | Gmail API (OAuth2)                  |
+| Email       | Gmail API (OAuth2) · Microsoft Graph API (PKCE) |
 
 ## Key Features
 
@@ -85,4 +93,4 @@ priorityMail/
 
 ## Environment Variables
 
-See `connectors/gmail/.env.example` and `backend/.env.example` for the full list of required variables.
+See `connectors/gmail/.env.example`, `connectors/o365/.env.example`, and `backend/.env.example` for the full list of required variables. Full documentation in [`DEVELOPMENT.md`](DEVELOPMENT.md).

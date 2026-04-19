@@ -12,6 +12,30 @@ _Changes staged but not yet released._
 
 ---
 
+## [0.4.0] — 2026-04-19
+
+### Added
+
+- **Microsoft Outlook / O365 connector** (`connectors/o365/`) — fetches unread emails via Microsoft Graph API using OAuth2 + PKCE
+  - `auth.ts` — one-time PKCE authorization code flow; prints refresh token for `.env`
+  - `o365-connector.ts` — exchanges refresh token for access token on each run, fetches via Graph API
+  - `normalize.ts` — converts Graph API message objects to `NormalizedEmail` with HTML stripping and quoted history removal
+  - `index.ts` — entry point: fetch → triage → write `output/triaged.json` → POST to backend
+  - Shared pipeline files (`rules-engine.ts`, `ai-classifier.ts`, `triage-pipeline.ts`) copied from Gmail connector
+  - `docker compose run --rm o365-connector` one-shot job wired into `docker-compose.yml`
+- **`source` and `account_email` fields** across the full pipeline
+  - `NormalizedEmail` gains `source: "gmail" | "o365"` and `accountEmail: string`
+  - `TriagedEmail` carries `source` and `accountEmail` through to the ingest payload
+  - `emails` table gains `source TEXT` and `account_email TEXT` columns (migration via `ALTER TABLE IF NOT EXISTS`)
+  - `GET /emails` accepts a new `?source=gmail` / `?source=o365` filter parameter
+  - `POST /emails/ingest` stores `source` and `account_email` on every upsert
+- **Frontend source indicators**
+  - Blue **Gmail** badge and cyan **Outlook** badge on each email row in the inbox (visible in All view)
+  - **All / Gmail / Outlook** filter tabs at the top of the inbox
+  - Source badge shown next to the From address on the email detail page
+
+---
+
 ## [0.3.0] — 2026-04-19
 
 ### Added

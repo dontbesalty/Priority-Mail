@@ -66,7 +66,7 @@ Planned phases and features for Priority Mail. Status reflects current progress.
 
 ## 📋 Phase 6 — Production + Multi-Provider
 
-- [ ] Microsoft Outlook / Graph API connector
+- [x] Microsoft Outlook / Graph API connector _(shipped early in 0.4.0)_
 - [ ] Multi-user support with account isolation
 - [ ] Shared mailbox support
 - [ ] User authentication (login/session)
