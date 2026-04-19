@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Task List Feature** — Initial setup of the feature branch for task management and list views.
+
 ### Changed
 
 - **Time‑based email fetch** — Both Gmail and Outlook connectors now fetch only emails from the last 24 hours, replacing the simple `FETCH_LIMIT=20` count limit.
