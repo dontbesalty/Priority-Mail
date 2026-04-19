@@ -2,6 +2,12 @@
 
 An AI-powered email triage assistant that reads your inbox and helps you decide what needs attention — without taking any automatic actions. The AI recommends, the human approves.
 
+<img src="assets/dashboard.jpg" alt="Dashboard Overview" width="800">
+<p><em>Main dashboard with priority categories and source filtering</em></p>
+
+<img src="assets/message.jpg" alt="Email Triage Details" width="800">
+<p><em>Deep dive into AI-generated reasoning, category, and priority for a single message</em></p>
+
 ## What it does
 
 - Fetches unread emails from **Gmail** (Google API) and **Outlook / O365** (Microsoft Graph API)
