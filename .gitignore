@@ -37,7 +37,6 @@ yarn-error.log*
 # Editor/IDE
 .vscode/*
 !.vscode/extensions.json
-.clinerules/
 .idea/
 *.swp
 *.swo
@@ -52,5 +51,10 @@ backend/dist/
 !**/Dockerfile
 !**/docker-compose.yml
 
-# AI
-.clinerules
+# Cline
+#.clinerules/
+.clinerules/hooks/TaskComplete
+
+# Custom Rules (Personal filters)
+connectors/gmail/custom-rules.json
+connectors/o365/custom-rules.json

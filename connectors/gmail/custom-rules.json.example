@@ -1,0 +1,11 @@
+[
+  {
+    "from_matches": ["@example.com"],
+    "subject_matches": ["Test Rule"],
+    "priority": "Low",
+    "category": "Other",
+    "skip_ai": true,
+    "local_ai_only": false,
+    "reason": "Personal filter example"
+  }
+]

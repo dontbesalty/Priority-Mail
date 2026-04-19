@@ -24,6 +24,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Increased default `FETCH_LIMIT` from 20 to 200 in `.env.example` and `.env` files to accommodate high‑volume 24‑hour windows.
 - Gmail connector logs the constructed query; Outlook connector logs the Graph API `$filter`.
 
+- **Personal Custom Filters** — Users can now add their own deterministic rules in a `custom-rules.json` file (ignored by git).
+  - Rules support matching by `from`, `subject`, and `body` patterns.
+  - Allows overriding priority, category, and skipping AI triage.
+  - Template provided as `custom-rules.json.example`.
+
 _Changes staged but not yet released._
 
 ---

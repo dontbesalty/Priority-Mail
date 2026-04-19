@@ -6,6 +6,8 @@
  * Cost: $0. Latency: <1ms per email.
  */
 
+import * as fs from "fs";
+import * as path from "path";
 import { NormalizedEmail } from "./normalize";
 
 export type Priority = "High" | "Medium" | "Low";
@@ -30,6 +32,31 @@ export interface RulesResult {
   rule_fired?: string;
   skip_ai: boolean;      // true = don't call any AI for this email
   local_ai_only: boolean; // true = only use LOCAL_AI_URL, never send to cloud
+}
+
+interface CustomRule {
+  from_matches?: string[];
+  subject_matches?: string[];
+  body_matches?: string[];
+  priority?: Priority;
+  category?: Category;
+  skip_ai?: boolean;
+  local_ai_only?: boolean;
+  reason?: string;
+}
+
+// ── Load custom rules if they exist ──────────────────────────────────────────
+const CUSTOM_RULES_PATH = path.join(__dirname, "..", "custom-rules.json");
+let customRules: CustomRule[] = [];
+
+try {
+  if (fs.existsSync(CUSTOM_RULES_PATH)) {
+    const data = fs.readFileSync(CUSTOM_RULES_PATH, "utf8");
+    customRules = JSON.parse(data);
+    console.log(`Loaded ${customRules.length} custom rules from ${CUSTOM_RULES_PATH}`);
+  }
+} catch (err) {
+  console.error(`Error loading custom rules from ${CUSTOM_RULES_PATH}:`, err);
 }
 
 // ── Known newsletter / bulk-mail sending domains ──────────────────────────────
@@ -112,11 +139,39 @@ function senderDomain(from: string): string {
 export function applyRules(email: NormalizedEmail): RulesResult {
   const labels = email.labels.map((l) => l.toUpperCase());
   const subject = email.subject.toLowerCase();
-  const body = email.body.toLowerCase().slice(0, 800);
+  const body = email.body.toLowerCase();
   const from = email.from.toLowerCase();
+
+  // ── Apply custom rules first ───────────────────────────────────────────────
+  for (const rule of customRules) {
+    let match = true;
+
+    if (rule.from_matches && !rule.from_matches.some(m => from.includes(m.toLowerCase()))) {
+      match = false;
+    }
+    if (match && rule.subject_matches && !rule.subject_matches.some(m => subject.includes(m.toLowerCase()))) {
+      match = false;
+    }
+    if (match && rule.body_matches && !rule.body_matches.some(m => body.includes(m.toLowerCase()))) {
+      match = false;
+    }
+
+    if (match && (rule.from_matches || rule.subject_matches || rule.body_matches)) {
+      return {
+        priority: rule.priority || "Low",
+        category: rule.category || "Other",
+        confidence: 1.0,
+        rule_fired: `custom_rule:${rule.reason || "unnamed"}`,
+        skip_ai: rule.skip_ai !== undefined ? rule.skip_ai : true,
+        local_ai_only: rule.local_ai_only || false,
+      };
+    }
+  }
+
+  const bodySnippet = body.slice(0, 800);
   const domain = senderDomain(email.from);
 
-  // ── Gmail promotional / social labels → skip AI entirely ──────────────────
+  // ── Gmail (or other) promotional / social labels → skip AI entirely ───────
   if (labels.includes("CATEGORY_PROMOTIONS")) {
     return {
       priority: "Low", category: "Newsletter / Marketing",
@@ -212,7 +267,7 @@ export function applyRules(email: NormalizedEmail): RulesResult {
   }
 
   // ── Annual report / compliance body text ──────────────────────────────────
-  if (/annual report due|compliance deadline|late fee/i.test(body)) {
+  if (/annual report due|compliance deadline|late fee/i.test(bodySnippet)) {
     return {
       priority: "High", category: "Billing / Invoice",
       confidence: 0.9, rule_fired: "body_compliance_keywords",
@@ -220,7 +275,7 @@ export function applyRules(email: NormalizedEmail): RulesResult {
     };
   }
 
-  // ── Gmail updates category → medium, still worth AI classifying ───────────
+  // ── Gmail updates (or other provider equivalent) category → medium ───────
   if (labels.includes("CATEGORY_UPDATES")) {
     return {
       priority: "Medium", category: "Other",

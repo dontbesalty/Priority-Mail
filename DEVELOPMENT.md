@@ -165,6 +165,22 @@ npm run dev      # Fetches Outlook emails, runs triage, writes output/triaged.js
 | `npm run dev` | Run the triage pipeline locally |
 | `npm run build` | Compile TypeScript to `dist/` |
 
+#### Custom Rules (Gmail)
+
+You can add personal custom filters by creating `connectors/gmail/custom-rules.json`. This file is ignored by git.
+
+```json
+[
+  {
+    "from_matches": ["@example.com"],
+    "subject_matches": ["Project X"],
+    "priority": "High",
+    "category": "Client Request",
+    "reason": "Important client"
+  }
+]
+```
+
 ### `connectors/o365`
 
 | Command | Description |
@@ -172,6 +188,10 @@ npm run dev      # Fetches Outlook emails, runs triage, writes output/triaged.js
 | `npm run auth` | One-time PKCE flow — prints refresh token |
 | `npm run dev` | Run the triage pipeline locally |
 | `npm run build` | Compile TypeScript to `dist/` |
+
+#### Custom Rules (Outlook)
+
+You can add personal custom filters by creating `connectors/o365/custom-rules.json`. This file is ignored by git.
 
 ### `backend`
 
