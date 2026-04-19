@@ -10,8 +10,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- **Task List Feature** — Initial setup of the feature branch for task management and list views.
-- **Detailed development plan** for the "Running Task List" feature (`docs/task-list-feature.md`).
+- **Task List Feature** — Persistent task management with email traceability.
+  - New `tasks` table in PostgreSQL.
+  - Backend API: `GET /tasks`, `POST /tasks`, `PATCH /tasks/:id`, `DELETE /tasks/:id`.
+  - Frontend "Task List" page and global navigation.
+  - "Add to Task List" button on email detail pages for AI-suggested tasks.
 
 ### Changed
 
