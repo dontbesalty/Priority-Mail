@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import { migrate } from "./db/client";
 import emailsRouter from "./routes/emails";
+import tasksRouter from "./routes/tasks";
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "4000", 10);
@@ -14,6 +15,7 @@ app.use(express.json({ limit: "10mb" })); // ingest can be large
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/emails", emailsRouter);
+app.use("/tasks", tasksRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", ts: new Date().toISOString() });

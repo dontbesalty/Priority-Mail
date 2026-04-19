@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getEmail, actionEmail, Email } from "@/lib/api";
+import { getEmail, actionEmail, createTask, Email } from "@/lib/api";
 
 const PRIORITY_STYLES: Record<string, string> = {
   High: "bg-red-100 text-red-700 border border-red-200",
@@ -38,6 +38,7 @@ export default function EmailDetailPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [actioning, setActioning] = useState(false);
+  const [taskAdded, setTaskAdded] = useState(false);
 
   useEffect(() => {
     getEmail(id).then(setEmail).catch(console.error).finally(() => setLoading(false));
@@ -49,6 +50,23 @@ export default function EmailDetailPage() {
     try {
       await actionEmail(email.id, action);
       router.push("/");
+    } finally {
+      setActioning(false);
+    }
+  }
+
+  async function addToTaskList() {
+    if (!email || !email.task_title) return;
+    setActioning(true);
+    try {
+      await createTask({
+        email_id: email.id,
+        title: email.task_title,
+        due_date: email.due_date_guess,
+      });
+      setTaskAdded(true);
+    } catch (err) {
+      console.error(err);
     } finally {
       setActioning(false);
     }
@@ -127,16 +145,29 @@ export default function EmailDetailPage() {
 
       {/* Task */}
       {email.task_needed && email.task_title && (
-        <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold text-yellow-800 uppercase tracking-wide mb-2">
-            Suggested Task
-          </h2>
-          <p className="font-medium text-gray-800">{email.task_title}</p>
-          {email.due_date_guess && (
-            <p className="text-sm text-gray-500 mt-1">
-              Due: {new Date(email.due_date_guess).toLocaleDateString()}
-            </p>
-          )}
+        <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-5 shadow-sm flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-yellow-800 uppercase tracking-wide mb-2">
+              Suggested Task
+            </h2>
+            <p className="font-medium text-gray-800">{email.task_title}</p>
+            {email.due_date_guess && (
+              <p className="text-sm text-gray-500 mt-1">
+                Due: {new Date(email.due_date_guess).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={addToTaskList}
+            disabled={actioning || taskAdded}
+            className={`shrink-0 px-4 py-2 rounded text-sm font-medium transition-colors ${
+              taskAdded
+                ? "bg-green-100 text-green-700 border border-green-200"
+                : "bg-yellow-600 text-white hover:bg-yellow-700 disabled:opacity-50"
+            }`}
+          >
+            {taskAdded ? "Added ✓" : "Add to Task List"}
+          </button>
         </div>
       )}
 

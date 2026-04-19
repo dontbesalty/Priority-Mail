@@ -36,6 +36,20 @@ CREATE TABLE IF NOT EXISTS emails (
 );
 
 CREATE INDEX IF NOT EXISTS idx_emails_priority ON emails (priority);
+
+-- ── Running Task List ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS tasks (
+  id           SERIAL PRIMARY KEY,
+  email_id     TEXT REFERENCES emails(id) ON DELETE SET NULL,
+  title        TEXT NOT NULL,
+  due_date     DATE,
+  status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','done')),
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status);
+CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks (due_date ASC);
 CREATE INDEX IF NOT EXISTS idx_emails_received_at ON emails (received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_emails_is_unread ON emails (is_unread);
 

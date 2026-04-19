@@ -40,6 +40,17 @@ export interface Email {
   created_at: string;
 }
 
+export interface Task {
+  id: number;
+  email_id?: string;
+  title: string;
+  due_date?: string;
+  status: "open" | "done";
+  created_at: string;
+  updated_at: string;
+  email_subject?: string;
+}
+
 export async function getEmails(params?: {
   priority?: string;
   actioned?: boolean;
@@ -65,9 +76,52 @@ export async function actionEmail(
   action: "approved" | "dismissed" | "corrected",
   category?: string
 ): Promise<void> {
-  await fetch(`${getBase()}/emails/${id}/action`, {
+  const res = await fetch(`${getBase()}/emails/${id}/action`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, category }),
   });
+  if (!res.ok) throw new Error(`POST /emails/${id}/action failed`);
+}
+
+export async function getTasks(status?: "open" | "done"): Promise<Task[]> {
+  const res = await fetch(`${getBase()}/tasks${status ? `?status=${status}` : ""}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`GET /tasks failed: ${res.status}`);
+  return res.json();
+}
+
+export async function createTask(task: {
+  email_id?: string;
+  title: string;
+  due_date?: string | null;
+}): Promise<Task> {
+  const res = await fetch(`${getBase()}/tasks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(task),
+  });
+  if (!res.ok) throw new Error(`POST /tasks failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateTask(
+  id: number,
+  updates: { status?: "open" | "done"; title?: string; due_date?: string | null }
+): Promise<Task> {
+  const res = await fetch(`${getBase()}/tasks/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) throw new Error(`PATCH /tasks/${id} failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteTask(id: number): Promise<void> {
+  const res = await fetch(`${getBase()}/tasks/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`DELETE /tasks/${id} failed: ${res.status}`);
 }

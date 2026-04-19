@@ -36,12 +36,12 @@ _Changes staged but not yet released._
   - `index.ts` — entry point: fetch → triage → write `output/triaged.json` → POST to backend
   - Shared pipeline files (`rules-engine.ts`, `ai-classifier.ts`, `triage-pipeline.ts`) copied from Gmail connector
   - `docker compose run --rm o365-connector` one-shot job wired into `docker-compose.yml`
+- **Task List Feature** — Persistent task management with email traceability.
+  - New `tasks` table in PostgreSQL.
+  - Backend API: `GET /tasks`, `POST /tasks`, `PATCH /tasks/:id`, `DELETE /tasks/:id`.
+  - Frontend "Task List" page and global navigation.
+  - "Add to Task List" button on email detail pages for AI-suggested tasks.
 - **`source` and `account_email` fields** across the full pipeline
-  - `NormalizedEmail` gains `source: "gmail" | "o365"` and `accountEmail: string`
-  - `TriagedEmail` carries `source` and `accountEmail` through to the ingest payload
-  - `emails` table gains `source TEXT` and `account_email TEXT` columns (migration via `ALTER TABLE IF NOT EXISTS`)
-  - `GET /emails` accepts a new `?source=gmail` / `?source=o365` filter parameter
-  - `POST /emails/ingest` stores `source` and `account_email` on every upsert
 - **Frontend source indicators**
   - Blue **Gmail** badge and cyan **Outlook** badge on each email row in the inbox (visible in All view)
   - **All / Gmail / Outlook** filter tabs at the top of the inbox
