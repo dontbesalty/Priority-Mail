@@ -60,3 +60,16 @@ ALTER TABLE emails
 
 CREATE INDEX IF NOT EXISTS idx_emails_source        ON emails (source);
 CREATE INDEX IF NOT EXISTS idx_emails_account_email ON emails (account_email);
+
+-- ── Connector Logs ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS logs (
+  id           SERIAL PRIMARY KEY,
+  level        TEXT NOT NULL DEFAULT 'info', -- 'info', 'warn', 'error'
+  source       TEXT NOT NULL,                -- 'gmail-connector', 'o365-connector', 'system'
+  message      TEXT NOT NULL,
+  metadata     JSONB,                        -- details like email_id, rule_fired, etc.
+  timestamp    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_logs_source    ON logs (source);

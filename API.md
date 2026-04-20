@@ -23,6 +23,58 @@ Returns service status and server timestamp.
 
 ---
 
+## Logs
+
+### `GET /logs`
+
+Returns a list of connector logs sorted by timestamp descending.
+
+**Query Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `limit` | number | Number of logs to return (default 100) |
+
+**Response**
+
+```json
+[
+  {
+    "id": 1,
+    "level": "info",
+    "source": "gmail-connector",
+    "message": "🔴 [rules+ai] Invoice #1042 due in 3 days",
+    "metadata": {
+      "email_id": "18f3a1b2c3d4e5f6",
+      "priority": "High",
+      "classified_by": "rules+ai"
+    },
+    "timestamp": "2026-04-19T10:05:00.000Z"
+  }
+]
+```
+
+---
+
+### `POST /logs`
+
+Ingest a new log entry.
+
+**Request Body**
+
+```json
+{
+  "level": "info",
+  "source": "gmail-connector",
+  "message": "🔴 [rules+ai] Invoice #1042 due in 3 days",
+  "metadata": { "email_id": "..." }
+}
+```
+
+**Response** — the created log object.
+
+---
+
 ## Emails
 
 ### `GET /emails`

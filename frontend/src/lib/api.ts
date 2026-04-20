@@ -51,6 +51,15 @@ export interface Task {
   email_subject?: string;
 }
 
+export interface LogEntry {
+  id: number;
+  level: "info" | "warn" | "error";
+  source: string;
+  message: string;
+  metadata: any;
+  timestamp: string;
+}
+
 export async function getEmails(params?: {
   priority?: string;
   actioned?: boolean;
@@ -124,4 +133,12 @@ export async function deleteTask(id: number): Promise<void> {
     method: "DELETE",
   });
   if (!res.ok) throw new Error(`DELETE /tasks/${id} failed: ${res.status}`);
+}
+
+export async function getLogs(limit: number = 100): Promise<LogEntry[]> {
+  const res = await fetch(`${getBase()}/logs?limit=${limit}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) return [];
+  return res.json();
 }

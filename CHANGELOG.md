@@ -9,6 +9,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Connector Logs feature: Added a dashboard page to view triage logs from Gmail and Outlook connectors.
+- New `logs` table in PostgreSQL to store connector activity and errors.
+- `/logs` backend API endpoints for ingestion and retrieval.
 
 - **Task List Feature** — Persistent task management with email traceability.
   - New `tasks` table in PostgreSQL.

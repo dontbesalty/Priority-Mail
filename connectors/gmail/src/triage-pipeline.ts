@@ -139,11 +139,50 @@ export async function triageBatch(
         results.push(triaged);
         const p = triaged.classification.priority;
         const indicator = p === "High" ? "🔴" : p === "Medium" ? "🟡" : "⚪";
-        console.log(
-          `${indicator}  [${triaged.classified_by}] ${email.subject.slice(0, 60)}`
-        );
+        const logMsg = `${indicator} [${triaged.classified_by}] ${email.subject.slice(0, 60)}`;
+        console.log(logMsg);
+
+        // Send to backend logs
+        const backendUrl = process.env.BACKEND_URL;
+        if (backendUrl) {
+          fetch(`${backendUrl}/logs`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              level: "info",
+              source: "gmail-connector",
+              message: logMsg,
+              metadata: {
+                email_id: triaged.id,
+                priority: p,
+                classified_by: triaged.classified_by,
+                rule_fired: triaged.rule_fired,
+              },
+            }),
+          }).catch(() => {}); // Silent fail for logs
+        }
       } catch (err: any) {
-        console.error(`❌  Failed to triage "${email.subject}": ${err.message}`);
+        const errorMsg = `❌ Failed to triage "${email.subject}": ${err.message}`;
+        console.error(errorMsg);
+
+        // Send to backend logs
+        const backendUrl = process.env.BACKEND_URL;
+        if (backendUrl) {
+          fetch(`${backendUrl}/logs`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              level: "error",
+              source: "gmail-connector",
+              message: errorMsg,
+              metadata: { 
+                subject: email.subject,
+                error: err.message 
+              },
+            }),
+          }).catch(() => {});
+        }
+
         // Push a fallback result so we don't lose the email
         results.push({
           ...email,

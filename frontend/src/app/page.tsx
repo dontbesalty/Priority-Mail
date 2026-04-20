@@ -115,6 +115,19 @@ export default async function InboxPage({ searchParams }: Props) {
         <FilterTab href="/" label="All" active={!activeSource} />
         <FilterTab href="/?source=gmail" label="Gmail" active={activeSource === "gmail"} />
         <FilterTab href="/?source=o365" label="Outlook" active={activeSource === "o365"} />
+        <div className="flex-grow"></div>
+        <Link
+          href="/tasks"
+          className="text-sm px-3 py-1 rounded-full border bg-white text-gray-600 border-gray-200 hover:border-gray-400 flex items-center gap-1"
+        >
+          📋 Tasks
+        </Link>
+        <Link
+          href="/logs"
+          className="text-sm px-3 py-1 rounded-full border bg-white text-gray-600 border-gray-200 hover:border-gray-400 flex items-center gap-1"
+        >
+          📜 Logs
+        </Link>
       </div>
 
       {/* Stats bar */}
