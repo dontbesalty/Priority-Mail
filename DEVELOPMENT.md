@@ -227,6 +227,7 @@ You can add personal custom filters by creating `connectors/o365/custom-rules.js
 | `LOCAL_AI_MODEL` | — | Local model name (default: `llama3.2`) |
 | `BACKEND_URL` | — | If set, POSTs results to this URL after triage |
 | `FETCH_LIMIT` | — | Max emails to fetch per run (default: `20`) |
+| `AI_DELAY_MS` | — | Delay in milliseconds between AI triage calls (default: `0`) |
 | `AUTH_PORT` | — | Port for one-time auth callback (default: `3000`) |
 
 ### `connectors/o365/.env`
@@ -243,6 +244,7 @@ You can add personal custom filters by creating `connectors/o365/custom-rules.js
 | `LOCAL_AI_MODEL` | — | Local model name (default: `llama3.2`) |
 | `BACKEND_URL` | — | If set, POSTs results to this URL after triage |
 | `FETCH_LIMIT` | — | Max emails to fetch per run (default: `20`) |
+| `AI_DELAY_MS` | — | Delay in milliseconds between AI triage calls (default: `0`) |
 | `AUTH_PORT` | — | Local callback port for auth flow (default: `3001`) |
 
 ### `backend/.env`

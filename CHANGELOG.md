@@ -9,6 +9,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Added `AI_DELAY_MS` configuration to Gmail and Outlook connectors to prevent rate limiting with free AI APIs by introducing a delay between triage calls.
+
+### Fixed
+- Fixed task list delete button and status toggle by adding missing `DELETE` and `PATCH` handlers to the frontend API proxy.
+
+### Changed
+- Improved Task List delete UX: removed browser `confirm()` popup and added an "Undo" notification that remains for 5 seconds before permanently deleting the task.
+
+### Added
+- Created `dev.sh` script to simplify Docker environment management (build, up, and one-shot connectors).
 - Connector Logs feature: Added a dashboard page to view triage logs from Gmail and Outlook connectors.
 - New `logs` table in PostgreSQL to store connector activity and errors.
 - `/logs` backend API endpoints for ingestion and retrieval.

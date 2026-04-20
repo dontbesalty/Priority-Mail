@@ -161,6 +161,12 @@ export async function triageBatch(
             }),
           }).catch(() => {}); // Silent fail for logs
         }
+
+        // Add delay between calls to respect rate limits if needed
+        const delayMs = parseInt(process.env.AI_DELAY_MS || "0", 10);
+        if (delayMs > 0 && idx < emails.length) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
       } catch (err: any) {
         const errorMsg = `❌ Failed to triage "${email.subject}": ${err.message}`;
         console.error(errorMsg);

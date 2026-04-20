@@ -45,3 +45,30 @@ export async function POST(
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Params }
+) {
+  const url = buildBackendUrl(params.path, "");
+  const body = await req.text();
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
+  const data = await res.json();
+  return NextResponse.json(data, { status: res.status });
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Params }
+) {
+  const url = buildBackendUrl(params.path, req.nextUrl.search);
+  const res = await fetch(url, {
+    method: "DELETE",
+  });
+  const data = await res.json();
+  return NextResponse.json(data, { status: res.status });
+}

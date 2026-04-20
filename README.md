@@ -43,14 +43,18 @@ npm run auth
 
 ### 3. Start the stack
 
+Use the provided development script to manage the environment:
+
 ```bash
-docker compose up -d postgres backend frontend
+./dev.sh
 ```
 
 ### 4. Fetch and triage emails
 
+To run the connectors (Gmail/Outlook) as one-shot jobs:
+
 ```bash
-docker compose run --rm gmail-connector
+./dev.sh --connectors
 ```
 
 ### 5. Open the dashboard

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { getTasks, updateTask, deleteTask, Task } from "@/lib/api";
 
@@ -8,9 +8,16 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "open" | "done">("open");
+  const [undoTask, setUndoTask] = useState<Task | null>(null);
+  const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     fetchTasks();
+    return () => {
+      if (deleteTimeoutRef.current) {
+        clearTimeout(deleteTimeoutRef.current);
+      }
+    };
   }, [filter]);
 
   async function fetchTasks() {
@@ -35,18 +42,76 @@ export default function TasksPage() {
     }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm("Are you sure you want to delete this task?")) return;
-    try {
-      await deleteTask(id);
-      fetchTasks();
-    } catch (err) {
-      console.error(err);
+  async function handleDelete(task: Task) {
+    // Clear any existing pending delete
+    if (deleteTimeoutRef.current) {
+      clearTimeout(deleteTimeoutRef.current);
+      if (undoTask) {
+        await deleteTask(undoTask.id);
+      }
+    }
+
+    setUndoTask(task);
+    setTasks((prev) => prev.filter((t) => t.id !== task.id));
+
+    deleteTimeoutRef.current = setTimeout(async () => {
+      try {
+        await deleteTask(task.id);
+        setUndoTask(null);
+        deleteTimeoutRef.current = null;
+      } catch (err) {
+        console.error(err);
+        fetchTasks(); // Restore if API fails
+      }
+    }, 5000);
+  }
+
+  function handleUndo() {
+    if (deleteTimeoutRef.current) {
+      clearTimeout(deleteTimeoutRef.current);
+      deleteTimeoutRef.current = null;
+    }
+    if (undoTask) {
+      setTasks((prev) => [...prev, undoTask].sort((a, b) => {
+        if (!a.due_date && b.due_date) return 1;
+        if (a.due_date && !b.due_date) return -1;
+        if (a.due_date && b.due_date) {
+          return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+        }
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }));
+      setUndoTask(null);
     }
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 relative">
+      {undoTask && (
+        <div className="fixed bottom-8 right-8 bg-gray-900 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300 z-50">
+          <span className="text-sm font-medium">Task deleted</span>
+          <button
+            onClick={handleUndo}
+            className="text-blue-400 hover:text-blue-300 text-sm font-bold uppercase tracking-wider"
+          >
+            Undo
+          </button>
+          <button 
+            onClick={async () => {
+              if (deleteTimeoutRef.current) {
+                clearTimeout(deleteTimeoutRef.current);
+                await deleteTask(undoTask.id);
+                setUndoTask(null);
+              }
+            }}
+            className="text-gray-500 hover:text-gray-400"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Task List</h1>
         <div className="flex bg-gray-100 p-1 rounded-lg">
@@ -117,7 +182,7 @@ export default function TasksPage() {
                 </div>
               </div>
               <button
-                onClick={() => handleDelete(task.id)}
+                onClick={() => handleDelete(task)}
                 className="text-gray-400 hover:text-red-500 transition-colors"
                 title="Delete task"
               >
