@@ -2,15 +2,6 @@
  * index.ts
  *
  * Entry point for the Gmail connector + triage pipeline.
- *
- * Flow:
- *   1. Fetch unread emails from Gmail
- *   2. Run Rules Engine (fast, free pre-classification)
- *   3. Run AI Classifier for emails that need it (OpenRouter)
- *   4. Sort by priority
- *   5. Print summary to console
- *   6. Write output/triaged.json (always)
- *   7. POST to backend API if BACKEND_URL is set (Docker stack mode)
  */
 
 import * as fs from "fs";
@@ -68,17 +59,6 @@ async function postToBackend(emails: TriagedEmail[]): Promise<void> {
     });
     if (res.ok) {
       console.log(`✅  Sent ${emails.length} emails to backend (${backendUrl})`);
-      // Log successful run
-      await fetch(`${backendUrl}/logs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          level: "info",
-          source: "gmail-connector",
-          message: `Connector run completed: ${emails.length} emails triaged`,
-          metadata: { count: emails.length }
-        }),
-      }).catch(() => {});
     } else {
       console.warn(`⚠️   Backend responded ${res.status} — check backend logs`);
     }
@@ -87,11 +67,40 @@ async function postToBackend(emails: TriagedEmail[]): Promise<void> {
   }
 }
 
+async function logCompletion(
+  emails: TriagedEmail[],
+  durationMs: number
+): Promise<void> {
+  const backendUrl = process.env.BACKEND_URL;
+  if (!backendUrl) return;
+
+  const durationSec = (durationMs / 1000).toFixed(1);
+  try {
+    await fetch(`${backendUrl}/logs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        level: "info",
+        source: "gmail-connector",
+        message: `Connector run completed: ${emails.length} emails triaged in ${durationSec}s`,
+        metadata: {
+          count: emails.length,
+          duration_ms: durationMs,
+          duration_sec: parseFloat(durationSec),
+        },
+      }),
+    });
+  } catch (err) {
+    // Silent fail for logs
+  }
+}
+
 async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function main({ fetchLimit }: { fetchLimit?: number } = {}): Promise<void> {
+  const startTime = Date.now();
   try {
     const aiDelay = process.env.AI_CALL_DELAY_MS
       ? parseInt(process.env.AI_CALL_DELAY_MS, 10)
@@ -115,9 +124,11 @@ async function main({ fetchLimit }: { fetchLimit?: number } = {}): Promise<void>
     printSummary(triaged);
     writeOutput(triaged);
     await postToBackend(triaged);
+
+    const durationMs = Date.now() - startTime;
+    await logCompletion(triaged, durationMs);
   } catch (err: any) {
     console.error("\n❌  Error:", err.message ?? err);
-    // In daemon mode, we don't want to exit on a single error
     if (!process.env.POLL_INTERVAL_SECONDS) {
       process.exit(1);
     }
@@ -130,12 +141,10 @@ async function run(): Promise<void> {
     : null;
 
   if (!pollIntervalSec) {
-    // One-shot mode (existing behavior)
     await main();
     return;
   }
 
-  // Daemon mode
   console.log(`⏱️  Polling mode: running every ${pollIntervalSec}s`);
 
   let isFirstRun = true;

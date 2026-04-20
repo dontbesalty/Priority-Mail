@@ -51,18 +51,34 @@ docker compose up -d $CORE_SERVICES
 if [ "$WITH_CONNECTORS" = true ]; then
   echo "📧 Running connectors..."
   
+  # --- Gmail Connector ---
   echo "👉 Running Gmail connector..."
   if [ ! -f "connectors/gmail/.env" ]; then
     echo "⚠️  gmail-connector: .env not found. Skipping. (Copy connectors/gmail/.env.example)"
   else
-    docker compose run --rm gmail-connector
+    # Check if polling is enabled
+    if grep -q "POLL_INTERVAL_SECONDS=" "connectors/gmail/.env" && [ "$(grep "POLL_INTERVAL_SECONDS=" "connectors/gmail/.env" | cut -d'=' -f2)" != "" ]; then
+      echo "⏱️  Polling mode detected. Starting as daemon..."
+      docker compose up -d gmail-connector
+    else
+      echo "⚡  One-shot mode detected."
+      docker compose run --rm gmail-connector
+    fi
   fi
 
+  # --- O365 Connector ---
   echo "👉 Running O365 connector..."
   if [ ! -f "connectors/o365/.env" ]; then
     echo "⚠️  o365-connector: .env not found. Skipping. (Copy connectors/o365/.env.example)"
   else
-    docker compose run --rm o365-connector
+    # Check if polling is enabled
+    if grep -q "POLL_INTERVAL_SECONDS=" "connectors/o365/.env" && [ "$(grep "POLL_INTERVAL_SECONDS=" "connectors/o365/.env" | cut -d'=' -f2)" != "" ]; then
+      echo "⏱️  Polling mode detected. Starting as daemon..."
+      docker compose up -d o365-connector
+    else
+      echo "⚡  One-shot mode detected."
+      docker compose run --rm o365-connector
+    fi
   fi
 fi
 
