@@ -2,7 +2,7 @@
 
 ## Overview
 
-This feature lets users correct the AI's classification of an email (category and/or priority) directly from the email detail page. The correction is persisted in a `classification_overrides` table, and future emails from the same sender are automatically classified using the user's override — bypassing the rules engine and AI entirely.
+This feature lets users correct the AI's classification of an email (category and/or priority) directly from the email detail page. The correction is persisted in a `classification_overrides` table, and future emails from the same sender are automatically classified using the user's override — bypassing the rules engine and AI entirely. A dedicated **Overrides management page** lets the user view, edit, enable/disable, and delete their saved overrides at any time.
 
 ---
 
@@ -26,7 +26,7 @@ This feature fully implements the `corrected` path and adds the feedback loop.
 
 1. **Re-Classify (immediate)** — Users can change the category and/or priority of any email from the detail page.
 2. **Remember (future ingestion)** — When a correction is saved, an override record is written so future emails from the same sender are auto-classified to match.
-3. **Manage** — Overrides can be listed and deleted (to stop forcing a sender into a category).
+3. **Manage** — Overrides can be viewed, edited, enabled/disabled, and deleted from a dedicated management page.
 
 ---
 
@@ -55,29 +55,36 @@ This is stored alongside `user_action = 'corrected'` and `user_category`.
 
 ### 2. New table: `classification_overrides`
 
-Stores learned corrections keyed by sender. When a user corrects an email, a row is written here. The connector reads this table at startup and applies any matching override before running rules or AI.
+Stores learned corrections keyed by sender. When a user corrects an email, a row is written here. The connector reads this table at startup and applies any matching, enabled override before running rules or AI.
 
 ```sql
 CREATE TABLE IF NOT EXISTS classification_overrides (
-  id              SERIAL PRIMARY KEY,
-  from_address    TEXT,          -- exact sender address, e.g. "boss@acme.com"
-  sender_domain   TEXT,          -- domain portion only, e.g. "acme.com"
-  subject_contains TEXT,         -- optional keyword to narrow scope, e.g. "invoice"
-  category        TEXT NOT NULL,
-  priority        TEXT CHECK (priority IN ('High','Medium','Low')),
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ DEFAULT NOW()
+  id               SERIAL PRIMARY KEY,
+  from_address     TEXT,          -- exact sender address, e.g. "boss@acme.com"
+  sender_domain    TEXT,          -- domain portion only, e.g. "acme.com"
+  subject_contains TEXT,          -- optional keyword in subject, e.g. "invoice"
+  body_contains    TEXT,          -- optional keyword in body, e.g. "annual report"
+  category         TEXT NOT NULL,
+  priority         TEXT CHECK (priority IN ('High','Medium','Low')),
+  enabled          BOOLEAN NOT NULL DEFAULT TRUE,  -- toggle off without deleting
+  created_at       TIMESTAMPTZ DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_overrides_from_address  ON classification_overrides (from_address);
 CREATE INDEX IF NOT EXISTS idx_overrides_sender_domain ON classification_overrides (sender_domain);
+CREATE INDEX IF NOT EXISTS idx_overrides_enabled       ON classification_overrides (enabled);
 ```
 
-**Matching logic (applied in order — first match wins):**
-1. Exact `from_address` + `subject_contains` match (most specific)
-2. Exact `from_address` match (no subject filter)
-3. `sender_domain` + `subject_contains` match
-4. `sender_domain` match (broadest)
+**Matching logic:**
+
+An override matches an incoming email when `enabled = TRUE` and **all non-null conditions** in that row are satisfied simultaneously:
+- `from_address` (if set): the email's `from` field must contain this value (case-insensitive)
+- `sender_domain` (if set): the sender's domain must end with this value (case-insensitive)
+- `subject_contains` (if set): the email's `subject` must contain this keyword (case-insensitive)
+- `body_contains` (if set): the email's `body` must contain this keyword (case-insensitive)
+
+Overrides are evaluated most-specific first, scored by how many conditions are set. The override with the highest number of matching conditions wins. Ties are broken by `created_at DESC` (most recent override wins).
 
 ---
 
@@ -95,8 +102,10 @@ CREATE INDEX IF NOT EXISTS idx_overrides_sender_domain ON classification_overrid
 {
   "action": "approved" | "dismissed" | "corrected",
   "category": "string (required when action=corrected)",
-  "priority": "High" | "Medium" | "Low" (optional, only used when action=corrected)",
-  "save_override": true | false  // default true when action=corrected
+  "priority": "High" | "Medium" | "Low",   // optional, only used when action=corrected
+  "subject_contains": "string",             // optional keyword to narrow the override to matching subjects
+  "body_contains": "string",               // optional keyword to narrow the override to matching body text
+  "save_override": true | false            // default true when action=corrected
 }
 ```
 
@@ -106,13 +115,15 @@ CREATE INDEX IF NOT EXISTS idx_overrides_sender_domain ON classification_overrid
    - Extract `from_address` from the email row
    - Extract `sender_domain` from `from_address`
    - Upsert into `classification_overrides`:
-     - Match key: `from_address` (and `subject_contains` if provided)
-     - Update `category`, `priority`, `updated_at` if the row already exists
+     - Upsert key: `from_address` + `subject_contains` + `body_contains` (all three together form a unique combination)
+     - Store the provided `subject_contains` and `body_contains` values (may be null if user left them blank)
+     - Set `enabled = TRUE` on upsert
+     - Update `category`, `priority`, `updated_at` if a matching row already exists
      - Insert new row otherwise
 
 ### `GET /classification-overrides` (new)
 
-Returns all saved overrides, sorted by `created_at DESC`.
+Returns all saved overrides, sorted by `created_at DESC`. Includes both enabled and disabled rows so the management page can show all of them.
 
 ```
 GET /classification-overrides
@@ -126,17 +137,43 @@ Response:
     "from_address": "newsletter@acme.com",
     "sender_domain": "acme.com",
     "subject_contains": null,
+    "body_contains": null,
     "category": "Newsletter / Marketing",
     "priority": "Low",
+    "enabled": true,
     "created_at": "2026-04-15T10:00:00Z",
     "updated_at": "2026-04-15T10:00:00Z"
   }
 ]
 ```
 
+### `PATCH /classification-overrides/:id` (new)
+
+Update any fields of an existing override. Used for both editing (change category, priority, subject/body filters) and toggling enabled/disabled.
+
+```
+PATCH /classification-overrides/1
+```
+
+Body (all fields optional — only provided fields are updated):
+```json
+{
+  "category": "Billing / Invoice",
+  "priority": "High",
+  "subject_contains": "invoice",
+  "body_contains": null,
+  "enabled": false
+}
+```
+
+Response:
+```json
+{ "ok": true, "id": 1 }
+```
+
 ### `DELETE /classification-overrides/:id` (new)
 
-Deletes a single override by ID. Future emails from that sender will go back through the rules engine and AI.
+Permanently deletes an override. Future emails from that sender will go back through the rules engine and AI.
 
 ```
 DELETE /classification-overrides/1
@@ -155,10 +192,10 @@ Both `connectors/gmail/src/triage-pipeline.ts` and `connectors/o365/src/triage-p
 
 ### 1. Fetch overrides at startup
 
-In `index.ts` (the connector entry point), before calling `triageBatch`, fetch all overrides from the backend:
+In `index.ts` (the connector entry point), before calling `triageBatch`, fetch all overrides from the backend. The backend already filters to `enabled = TRUE` for the connector's query (or the connector can filter client-side):
 
 ```typescript
-const overrides = await fetchOverrides(backendUrl); // GET /classification-overrides
+const overrides = await fetchOverrides(backendUrl); // GET /classification-overrides?enabled=true
 ```
 
 Pass the overrides array down to `triageBatch`.
@@ -194,25 +231,42 @@ export async function triageEmail(
 
 ### 3. `matchOverride` function
 
+Score each override by how many conditions it sets. Disabled overrides are excluded before scoring. The highest-scoring match wins; ties broken by newest `created_at`.
+
 ```typescript
+function overrideScore(o: ClassificationOverride): number {
+  return (o.from_address ? 2 : 0) +
+         (o.sender_domain ? 1 : 0) +
+         (o.subject_contains ? 1 : 0) +
+         (o.body_contains ? 1 : 0);
+}
+
 function matchOverride(
   email: NormalizedEmail,
   overrides: ClassificationOverride[]
 ): ClassificationOverride | undefined {
-  const from = email.from.toLowerCase();
-  const domainMatch = from.match(/@([\w.-]+)/);
-  const domain = domainMatch ? domainMatch[1] : "";
+  const from    = email.from.toLowerCase();
   const subject = email.subject.toLowerCase();
+  const body    = email.body.toLowerCase();
+  const domainMatch = from.match(/@([\w.-]+)/);
+  const domain  = domainMatch ? domainMatch[1] : "";
 
-  // Priority: exact from + subject > exact from > domain + subject > domain
-  return (
-    overrides.find(o => o.from_address && from.includes(o.from_address.toLowerCase())
-      && o.subject_contains && subject.includes(o.subject_contains.toLowerCase())) ??
-    overrides.find(o => o.from_address && from.includes(o.from_address.toLowerCase()) && !o.subject_contains) ??
-    overrides.find(o => o.sender_domain && domain.endsWith(o.sender_domain.toLowerCase())
-      && o.subject_contains && subject.includes(o.subject_contains.toLowerCase())) ??
-    overrides.find(o => o.sender_domain && domain.endsWith(o.sender_domain.toLowerCase()) && !o.subject_contains)
-  );
+  const candidates = overrides.filter(o => {
+    if (!o.enabled) return false;  // skip disabled overrides
+    if (o.from_address     && !from.includes(o.from_address.toLowerCase()))           return false;
+    if (o.sender_domain    && !domain.endsWith(o.sender_domain.toLowerCase()))        return false;
+    if (o.subject_contains && !subject.includes(o.subject_contains.toLowerCase()))   return false;
+    if (o.body_contains    && !body.includes(o.body_contains.toLowerCase()))          return false;
+    return true;
+  });
+
+  if (candidates.length === 0) return undefined;
+
+  // Most-specific override wins; ties broken by newest created_at
+  return candidates.sort((a, b) =>
+    overrideScore(b) - overrideScore(a) ||
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )[0];
 }
 ```
 
@@ -261,8 +315,14 @@ When the user clicks **"✏️ Correct Classification"**, expand an inline panel
 │  Priority (optional)                                │
 │  [ Keep as Medium              ▼ ]                  │
 │                                                     │
-│  📌 Remember for future emails from this sender     │
+│  📌 Remember for future emails matching:            │
 │  [ ☑ Yes, save override ]                           │
+│                                                     │
+│  Subject contains  (optional — leave blank = any)  │
+│  [ Annual Report                        ]           │
+│                                                     │
+│  Body contains  (optional — leave blank = any)     │
+│  [ late fee                             ]           │
 │                                                     │
 │  [ Save Correction ]  [ Cancel ]                    │
 └─────────────────────────────────────────────────────┘
@@ -270,10 +330,13 @@ When the user clicks **"✏️ Correct Classification"**, expand an inline panel
 
 - Category dropdown lists all valid categories (same list as the AI/rules engine).
 - Priority dropdown defaults to the current priority; has "Keep as [current]" as default.
-- The "save override" checkbox defaults to **checked**.
-- On submit: calls `POST /emails/:id/action` with `action: "corrected"`, the selected `category`, optional `priority`, and `save_override`.
+- The "save override" checkbox defaults to **checked**. When unchecked, the keyword fields are hidden.
+- **Subject contains**: text input, pre-filled with a suggested keyword extracted from the current email's subject (the longest non-stopword token). User can clear or change it.
+- **Body contains**: text input, empty by default. User can optionally enter a phrase that must appear in the email body for the override to fire.
+- Leaving either keyword field blank means "match any" for that condition — the override fires on all emails from that sender regardless of subject/body content.
+- On submit: calls `POST /emails/:id/action` with `action: "corrected"`, the selected `category`, optional `priority`, `subject_contains` (null if blank), `body_contains` (null if blank), and `save_override`.
 - On success: redirect to `/` (same as current approve/dismiss behavior).
-- Toast/notice: "Classification saved. Future emails from [sender domain] will be categorized as [category]."
+- Toast/notice: "Classification saved. Future emails from [sender] will be categorized as [category]."
 
 #### Valid Category Options (matches `rules-engine.ts`)
 ```
@@ -291,15 +354,63 @@ Financial Update
 Other
 ```
 
-### Optional: Overrides Management Page (`/overrides`)
+---
 
-A simple admin page listing all saved overrides with a delete button. Not required for the initial implementation but useful.
+### Overrides Management Page (`/overrides`) — Required
 
 **Route:** `frontend/src/app/overrides/page.tsx`
 
-**Display columns:** Sender / Domain | Category | Priority | Subject Filter | Saved | Delete
+Accessible from the main navigation bar (alongside Tasks and Logs). Lists all saved overrides and lets the user manage them without having to re-visit an email.
 
-**API calls:** `GET /classification-overrides` and `DELETE /classification-overrides/:id`
+#### Layout
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  🔁 Classification Overrides                              [ + New ]   │
+│  Rules saved from your past corrections. Active rules run before AI.  │
+├──────────┬──────────────┬──────────┬───────────────┬──────────┬───────┤
+│  Sender  │   Category   │ Priority │ Subject / Body│  Status  │       │
+├──────────┼──────────────┼──────────┼───────────────┼──────────┼───────┤
+│ acme.com │ Client Req.  │ High     │ sub: "invoice"│ ● Active │ ✏️ 🗑 │
+│ foo@bar  │ Newsletter   │ Low      │ —             │ ○ Off    │ ✏️ 🗑 │
+└──────────┴──────────────┴──────────┴───────────────┴──────────┴───────┘
+```
+
+#### Columns
+| Column | Notes |
+|---|---|
+| Sender | `from_address` if set, otherwise `sender_domain`. Shows the narrowest identifier. |
+| Category | The override category |
+| Priority | Override priority, or "—" if not set |
+| Subject / Body | Shows `sub: "..."` and/or `body: "..."` if set, otherwise "—" |
+| Status | Toggle button: **Active** (green dot) / **Disabled** (grey dot). Clicking calls `PATCH /:id { enabled: !current }`. No page reload needed — optimistic UI update. |
+| Actions | ✏️ Edit icon opens an inline edit row (same fields as the correction form). 🗑 Delete icon shows a confirm prompt then calls `DELETE /:id`. |
+
+#### Inline Edit Row
+
+Clicking ✏️ on a row expands it in-place to an editable form:
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│  Editing: acme.com                                               │
+│  Category:  [ Billing / Invoice ▼ ]   Priority: [ High ▼ ]      │
+│  Subject contains:  [ invoice           ]                        │
+│  Body contains:     [                   ]                        │
+│  [ Save ]  [ Cancel ]                                            │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+On save: calls `PATCH /classification-overrides/:id` with changed fields.
+
+#### `+ New` Button
+
+Opens a standalone create form (same fields, no pre-fill). Useful for manually creating an override without going through an email. Calls `POST /classification-overrides` directly (separate from the email action endpoint).
+
+#### API helpers needed in `frontend/src/lib/api.ts`
+- `getOverrides()` → `GET /classification-overrides`
+- `updateOverride(id, patch)` → `PATCH /classification-overrides/:id`
+- `deleteOverride(id)` → `DELETE /classification-overrides/:id`
+- `createOverride(data)` → `POST /classification-overrides`
 
 ---
 
@@ -307,17 +418,18 @@ A simple admin page listing all saved overrides with a delete button. Not requir
 
 | File | Change |
 |---|---|
-| `backend/src/db/schema.sql` | Add `user_priority` column to `emails`; add `classification_overrides` table |
-| `backend/src/routes/emails.ts` | Update `POST /:id/action` to accept `user_priority` + `save_override`; write override on corrected |
-| `backend/src/routes/overrides.ts` | New file: `GET /classification-overrides`, `DELETE /classification-overrides/:id` |
-| `backend/src/server.ts` | Register new overrides router |
-| `connectors/gmail/src/triage-pipeline.ts` | Add override pre-check, `matchOverride()`, update `triageEmail` + `triageBatch` signatures |
-| `connectors/gmail/src/index.ts` | Fetch overrides at startup, pass to `triageBatch` |
+| `backend/src/db/schema.sql` | Add `user_priority` to `emails`; add `classification_overrides` table with `enabled` column |
+| `backend/src/routes/emails.ts` | Update `POST /:id/action` to accept `user_priority`, `subject_contains`, `body_contains`, `save_override`; write override on corrected |
+| `backend/src/routes/overrides.ts` | New file: `GET`, `POST`, `PATCH /:id`, `DELETE /:id` for overrides |
+| `backend/src/server.ts` | Register new overrides router at `/classification-overrides` |
+| `connectors/gmail/src/triage-pipeline.ts` | Add `matchOverride()`, override pre-check at top of `triageEmail`; update `triageBatch` signature |
+| `connectors/gmail/src/index.ts` | Fetch enabled overrides at startup, pass to `triageBatch` |
 | `connectors/o365/src/triage-pipeline.ts` | Same as Gmail changes |
 | `connectors/o365/src/index.ts` | Same as Gmail changes |
-| `frontend/src/lib/api.ts` | Add `correctEmail()`, `getOverrides()`, `deleteOverride()` API helpers |
-| `frontend/src/app/email/[id]/page.tsx` | Add "Correct Classification" panel with category + priority dropdowns |
-| `frontend/src/app/overrides/page.tsx` | (Optional) New admin page for managing saved overrides |
+| `frontend/src/lib/api.ts` | Add `correctEmail()`, `getOverrides()`, `updateOverride()`, `deleteOverride()`, `createOverride()` |
+| `frontend/src/app/email/[id]/page.tsx` | Add "Correct Classification" panel with category, priority, subject/body inputs |
+| `frontend/src/app/overrides/page.tsx` | New page: override list with enable/disable toggle, inline edit, delete |
+| `frontend/src/app/layout.tsx` | Add "🔁 Overrides" link to nav bar alongside Tasks and Logs |
 
 ---
 
@@ -329,27 +441,30 @@ A simple admin page listing all saved overrides with a delete button. Not requir
 - [ ] Add "Correct Classification" UI panel to email detail page
 - [ ] Verify corrected action is stored with `user_category` + `user_priority`
 
-### Phase 2 — Override Storage
-- [ ] Add `classification_overrides` table + indexes to schema
-- [ ] Add `POST /classification-overrides` create logic (called from action route)
+### Phase 2 — Override Storage + Management Page
+- [ ] Add `classification_overrides` table + indexes (including `enabled` column) to schema
+- [ ] Add override create/upsert logic called from the action endpoint
 - [ ] Add `GET /classification-overrides` endpoint
+- [ ] Add `PATCH /classification-overrides/:id` endpoint (edit fields + toggle enabled)
 - [ ] Add `DELETE /classification-overrides/:id` endpoint
+- [ ] Add `POST /classification-overrides` standalone create endpoint
 - [ ] Register overrides router in `server.ts`
-- [ ] Wire `save_override` toggle in the frontend panel
-- [ ] Add `getOverrides()` and `deleteOverride()` to `frontend/src/lib/api.ts`
+- [ ] Wire `save_override` + keyword fields in the frontend correction panel
+- [ ] Build `/overrides` management page (list, inline edit, enable/disable toggle, delete, + New)
+- [ ] Add overrides nav link to layout
+- [ ] Add `getOverrides()`, `updateOverride()`, `deleteOverride()`, `createOverride()` to `frontend/src/lib/api.ts`
 
 ### Phase 3 — Connector Memory
-- [ ] Add `fetchOverrides()` helper to both connectors
+- [ ] Add `fetchOverrides()` helper to both connectors (filter to `enabled=true` only)
 - [ ] Load overrides at connector startup (with graceful fallback on error)
-- [ ] Add `matchOverride()` function to triage pipeline
+- [ ] Add `overrideScore()` and `matchOverride()` to both triage pipelines
 - [ ] Insert override pre-check at top of `triageEmail` in both connectors
 - [ ] Log `classified_by: "user_override"` + `rule_fired: "user_override:N"` for auditability
 
 ### Phase 4 — Polish (Optional)
-- [ ] Build `/overrides` management page in the frontend
-- [ ] Add `subject_contains` field to the correction form (advanced option)
-- [ ] Show "Override active" badge on emails classified via user override
+- [ ] Show "Override active" badge on email detail page when an email was classified by a user override
 - [ ] Add override count to the dashboard stats bar
+- [ ] Allow creating overrides scoped to `sender_domain` only (not just `from_address`) via the `+ New` form
 
 ---
 
@@ -357,6 +472,5 @@ A simple admin page listing all saved overrides with a delete button. Not requir
 
 1. **Scope of override**: Should the default scope be the exact `from_address` or the `sender_domain`? Exact address is safer; domain is more aggressive. The plan defaults to `from_address` but the form could expose both as radio options.
 2. **Conflict with custom-rules.json**: User overrides run before the static custom rules file (since they run before the rules engine). Is this the right precedence, or should custom rules take priority?
-3. **Priority on correction**: Is it useful to allow priority correction, or is category correction sufficient for most use cases?
-4. **Override collision**: If two corrections exist for the same `from_address` (e.g., user changed their mind), the current plan upserts by `from_address` — the latest correction wins. Is this the right behavior?
-5. **Dedup on same email**: The ingest route uses `ON CONFLICT (id) DO UPDATE` but currently overwrites `priority` and `category` on re-ingest. With overrides, re-ingest of an already-corrected email would re-classify it via the override correctly — but verify this doesn't clobber `user_action = 'corrected'` on the email row.
+3. **Re-ingest clobber risk**: The ingest route uses `ON CONFLICT (id) DO UPDATE` and currently overwrites `priority` and `category`. With overrides active, re-ingesting an already-corrected email reclassifies it correctly via the override — but confirm the upsert does not overwrite `user_action = 'corrected'` on the email row.
+4. **Disabled overrides in connector**: The `GET /classification-overrides?enabled=true` approach is preferred so the connector only loads what it needs. The backend should support an `?enabled=true` filter param.
