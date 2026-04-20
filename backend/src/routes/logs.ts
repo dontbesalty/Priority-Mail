@@ -17,6 +17,25 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /logs/last-run - Get the timestamp of the last successful run for each source
+router.get("/last-run", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT source, MAX(timestamp) as last_run
+      FROM logs
+      WHERE message LIKE 'Connector run completed%'
+      GROUP BY source
+    `);
+    const lastRuns: Record<string, string> = {};
+    result.rows.forEach(row => {
+      lastRuns[row.source] = row.last_run;
+    });
+    res.json(lastRuns);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /logs - Insert a new log entry
 router.post("/", async (req, res) => {
   const { level, source, message, metadata } = req.body;

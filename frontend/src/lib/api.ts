@@ -142,3 +142,11 @@ export async function getLogs(limit: number = 100): Promise<LogEntry[]> {
   if (!res.ok) return [];
   return res.json();
 }
+
+export async function getLastRuns(): Promise<Record<string, string>> {
+  const res = await fetch(`${getBase()}/logs/last-run`, {
+    cache: "no-store",
+  });
+  if (!res.ok) return {};
+  return res.json();
+}

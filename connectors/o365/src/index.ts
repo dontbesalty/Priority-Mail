@@ -66,6 +66,17 @@ async function postToBackend(emails: TriagedEmail[]): Promise<void> {
     });
     if (res.ok) {
       console.log(`✅  Sent ${emails.length} Outlook emails to backend (${backendUrl})`);
+      // Log successful run
+      await fetch(`${backendUrl}/logs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          level: "info",
+          source: "o365-connector",
+          message: `Connector run completed: ${emails.length} emails triaged`,
+          metadata: { count: emails.length }
+        }),
+      }).catch(() => {});
     } else {
       console.warn(`⚠️   Backend responded ${res.status} — check backend logs`);
     }

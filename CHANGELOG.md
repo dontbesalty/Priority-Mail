@@ -10,6 +10,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - Added `AI_DELAY_MS` configuration to Gmail and Outlook connectors to prevent rate limiting with free AI APIs by introducing a delay between triage calls.
+- **Connector Run Health** — Added "Last Run" timestamps to the frontend dashboard.
+  - New `GET /logs/last-run` backend endpoint to track the most recent successful triage for each source.
+  - Connectors now log a completion message with metadata (email count) after a successful run.
+  - Dashboard stats bar now displays relative time (e.g., "5m ago") for Gmail and Outlook sync status.
+- **Interactive Inbox** — High-speed triage directly from the dashboard.
+  - New "Approve" (✅) and "Dismiss" (❌) quick-action buttons on every email row in the inbox list.
+  - Optimistic UI updates: emails are removed from the view instantly when actioned, before the backend sync completes.
+  - Refactored inbox into a client-side `EmailList` component for real-time state management.
 
 ### Fixed
 - Fixed task list delete button and status toggle by adding missing `DELETE` and `PATCH` handlers to the frontend API proxy.

@@ -1,22 +1,6 @@
 import Link from "next/link";
-import { getEmails, Email } from "@/lib/api";
-
-const PRIORITY_STYLES: Record<string, string> = {
-  High: "bg-red-100 text-red-700 border border-red-200",
-  Medium: "bg-yellow-100 text-yellow-700 border border-yellow-200",
-  Low: "bg-gray-100 text-gray-500 border border-gray-200",
-};
-
-const PRIORITY_DOTS: Record<string, string> = {
-  High: "🔴",
-  Medium: "🟡",
-  Low: "⚪",
-};
-
-function fromName(from: string): string {
-  const m = from.match(/^"?([^"<]+)"?\s*</);
-  return m ? m[1].trim() : from.replace(/<[^>]+>/, "").trim();
-}
+import { getEmails, Email, getLastRuns } from "@/lib/api";
+import EmailList from "./EmailList";
 
 function relativeDate(iso: string): string {
   const d = new Date(iso);
@@ -28,29 +12,6 @@ function relativeDate(iso: string): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function SourceBadge({ source }: { source?: string }) {
-  if (!source || source === "unknown") return null;
-  if (source === "gmail") {
-    return (
-      <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-blue-100 text-blue-700 border border-blue-200 shrink-0">
-        Gmail
-      </span>
-    );
-  }
-  if (source === "o365") {
-    return (
-      <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-cyan-100 text-cyan-700 border border-cyan-200 shrink-0">
-        Outlook
-      </span>
-    );
-  }
-  return (
-    <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-100 text-gray-500 border border-gray-200 shrink-0">
-      {source}
-    </span>
-  );
-}
-
 type Props = {
   searchParams: { source?: string };
 };
@@ -58,13 +19,17 @@ type Props = {
 export default async function InboxPage({ searchParams }: Props) {
   const activeSource = searchParams.source ?? "";
   let emails: Email[] = [];
+  let lastRuns: Record<string, string> = {};
   let error: string | null = null;
 
   try {
-    emails = await getEmails({
-      actioned: false,
-      source: activeSource || undefined,
-    });
+    [emails, lastRuns] = await Promise.all([
+      getEmails({
+        actioned: false,
+        source: activeSource || undefined,
+      }),
+      getLastRuns().catch(() => ({})),
+    ]);
   } catch (e: any) {
     error = e.message;
   }
@@ -131,68 +96,29 @@ export default async function InboxPage({ searchParams }: Props) {
       </div>
 
       {/* Stats bar */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex flex-wrap items-center gap-4 mb-6">
         <Stat label="High" count={high.length} color="text-red-600" />
         <Stat label="Medium" count={medium.length} color="text-yellow-600" />
         <Stat label="Low" count={low.length} color="text-gray-400" />
         <Stat label="Total" count={emails.length} color="text-gray-700" />
+
+        <div className="flex flex-col gap-0.5 ml-2">
+          {(activeSource === "gmail" || !activeSource) && lastRuns["gmail-connector"] && (
+            <div className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+              Gmail last run: {relativeDate(lastRuns["gmail-connector"])}
+            </div>
+          )}
+          {(activeSource === "o365" || !activeSource) && lastRuns["o365-connector"] && (
+            <div className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+              Outlook last run: {relativeDate(lastRuns["o365-connector"])}
+            </div>
+          )}
+        </div>
       </div>
 
-      {emails.length === 0 ? (
-        <div className="py-12 text-center text-gray-400">
-          <p className="text-3xl mb-2">📭</p>
-          <p className="font-medium">No {activeSource === "gmail" ? "Gmail" : "Outlook"} emails yet</p>
-          <p className="text-sm mt-1">
-            Run the {activeSource === "gmail" ? "Gmail" : "O365"} connector to fetch emails.
-          </p>
-        </div>
-      ) : (
-        /* Email list */
-        <div className="rounded-lg border border-gray-200 bg-white divide-y divide-gray-100 shadow-sm">
-          {emails.map((email) => (
-            <Link
-              key={email.id}
-              href={`/email/${encodeURIComponent(email.id)}`}
-              className="block hover:bg-gray-50 transition-colors"
-            >
-              <div className="px-4 py-3 flex items-start gap-3">
-                {/* Priority dot */}
-                <span className="mt-0.5 text-base shrink-0">
-                  {PRIORITY_DOTS[email.priority] ?? "⚪"}
-                </span>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-sm truncate">
-                      {email.subject}
-                    </span>
-                    <span className="text-xs text-gray-400 shrink-0">
-                      {relativeDate(email.received_at ?? email.created_at)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-gray-500 truncate">
-                      {fromName(email.from_address)}
-                    </span>
-                    {/* Source badge — only show when viewing "All" */}
-                    {!activeSource && <SourceBadge source={email.source} />}
-                    <span
-                      className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${PRIORITY_STYLES[email.priority]}`}
-                    >
-                      {email.category}
-                    </span>
-                  </div>
-                  {email.priority_reason && (
-                    <p className="text-xs text-gray-400 mt-0.5 truncate">
-                      {email.priority_reason}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
+      <EmailList initialEmails={emails} activeSource={activeSource} />
     </div>
   );
 }
