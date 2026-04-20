@@ -31,6 +31,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Refactored inbox into a client-side `EmailList` component for real-time state management.
 
 ### Fixed
+- Fixed "Last Run" status not updating when connectors find zero unread emails.
 - Fixed task list delete button and status toggle by adding missing `DELETE` and `PATCH` handlers to the frontend API proxy.
 
 ### Changed

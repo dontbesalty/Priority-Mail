@@ -110,20 +110,21 @@ async function main({ fetchLimit }: { fetchLimit?: number } = {}): Promise<void>
     const limit = fetchLimit ?? (process.env.FETCH_LIMIT ? parseInt(process.env.FETCH_LIMIT, 10) : 20);
 
     const emails = await fetchEmails(limit);
+    let triaged: TriagedEmail[] = [];
+
     if (emails.length === 0) {
       console.log("✅  No unread emails to process.");
-      return;
+    } else {
+      console.log("\n🔍  Running triage pipeline…\n");
+      triaged = await triageBatch(emails, {
+        concurrency,
+        aiCallDelayMs: aiDelay,
+      });
+
+      printSummary(triaged);
+      writeOutput(triaged);
+      await postToBackend(triaged);
     }
-
-    console.log("\n🔍  Running triage pipeline…\n");
-    const triaged = await triageBatch(emails, {
-      concurrency,
-      aiCallDelayMs: aiDelay,
-    });
-
-    printSummary(triaged);
-    writeOutput(triaged);
-    await postToBackend(triaged);
 
     const durationMs = Date.now() - startTime;
     await logCompletion(triaged, durationMs);

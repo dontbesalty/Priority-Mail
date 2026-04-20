@@ -24,6 +24,7 @@ router.get("/last-run", async (req, res) => {
       SELECT source, MAX(timestamp) as last_run
       FROM logs
       WHERE message LIKE 'Connector run completed%'
+         OR message LIKE '✅  Sent %'
       GROUP BY source
     `);
     const lastRuns: Record<string, string> = {};
