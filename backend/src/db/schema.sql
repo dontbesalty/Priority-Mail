@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS emails (
   user_action     TEXT CHECK (user_action IN ('approved','dismissed','corrected') OR user_action IS NULL),
   user_category   TEXT,
   actioned_at     TIMESTAMPTZ,
+  notified_pushover_at TIMESTAMPTZ,
 
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW()

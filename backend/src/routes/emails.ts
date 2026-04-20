@@ -1,7 +1,19 @@
 import { Router, Request, Response } from "express";
 import { pool } from "../db/client";
+import { sendPushoverNotification } from "../notifications/pushover";
 
 const router = Router();
+
+// ── Pushover Config ──────────────────────────────────────────────────────────
+const pushoverConfig = process.env.PUSHOVER_APP_TOKEN
+  ? {
+      appToken: process.env.PUSHOVER_APP_TOKEN,
+      userKey: process.env.PUSHOVER_USER_KEY ?? "",
+      frontendUrl: process.env.PUSHOVER_FRONTEND_URL,
+      notifyPriority: process.env.PUSHOVER_NOTIFY_PRIORITY ?? "High",
+      graceMins: parseInt(process.env.PUSHOVER_GRACE_PERIOD_MINUTES ?? "15", 10),
+    }
+  : null;
 
 // ── GET /emails ───────────────────────────────────────────────────────────────
 // List triaged emails sorted by priority then date.
@@ -128,6 +140,51 @@ router.post("/ingest", async (req: Request, res: Response) => {
   }
 
   res.json({ upserted });
+
+  // ── Trigger Pushover Notifications ─────────────────────────────────────────
+  if (pushoverConfig) {
+    try {
+      // 1. Collect ALL un-notified emails meeting the priority threshold
+      // This catches emails from the current batch AND those held by previous grace windows
+      const pendingResult = await pool.query(
+        `SELECT id, subject, from_address, category, priority_reason
+         FROM emails
+         WHERE priority = $1 AND notified_pushover_at IS NULL AND user_action IS NULL`,
+        [pushoverConfig.notifyPriority]
+      );
+      const pending = pendingResult.rows;
+
+      if (pending.length > 0) {
+        // 2. Grace period check: has ANY notification been sent recently?
+        const graceResult = await pool.query(
+          `SELECT 1 FROM emails
+           WHERE notified_pushover_at > NOW() - INTERVAL '${pushoverConfig.graceMins} minutes'
+           LIMIT 1`
+        );
+
+        if (graceResult.rows.length === 0) {
+          // 3. Grace window clear — fire ONE batched notification
+          console.log(`[Pushover] Sending notification for ${pending.length} emails...`);
+          await sendPushoverNotification(pending, {
+            appToken: pushoverConfig.appToken,
+            userKey: pushoverConfig.userKey,
+            frontendUrl: pushoverConfig.frontendUrl,
+          });
+
+          // 4. Mark them as notified
+          const pendingIds = pending.map((e) => e.id);
+          await pool.query(
+            `UPDATE emails SET notified_pushover_at = NOW() WHERE id = ANY($1)`,
+            [pendingIds]
+          );
+        } else {
+          console.log(`[Pushover] Grace period active, holding ${pending.length} emails.`);
+        }
+      }
+    } catch (err: any) {
+      console.warn(`⚠️ Pushover notification failed: ${err.message}`);
+    }
+  }
 });
 
 // ── POST /emails/:id/action ───────────────────────────────────────────────────

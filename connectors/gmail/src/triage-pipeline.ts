@@ -134,8 +134,8 @@ function toTriagedEmail(
 export async function triageBatch(
   emails: NormalizedEmail[],
   {
-    concurrency = 3,
-    aiCallDelayMs = 0,
+    concurrency = 1,
+    aiCallDelayMs = 3000,
   }: { concurrency?: number; aiCallDelayMs?: number } = {}
 ): Promise<TriagedEmail[]> {
   const results: TriagedEmail[] = [];

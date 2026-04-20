@@ -13,13 +13,13 @@ import { Priority, Category } from "./rules-engine";
 export interface AIClassification {
   priority: Priority;
   category: Category;
-  priority_reason: string;  // 1 sentence
+  priority_reason: string; // 1 sentence
   reply_needed: boolean;
   task_needed: boolean;
   task_title?: string;
-  due_date_guess?: string;  // ISO date string or null
+  due_date_guess?: string; // ISO date string or null
   reply_draft?: string;
-  confidence: number;       // 0.0 – 1.0
+  confidence: number; // 0.0 – 1.0
 }
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -67,10 +67,18 @@ function parseJSON(text: string): any {
 function validateClassification(obj: any): AIClassification {
   const validPriorities: Priority[] = ["High", "Medium", "Low"];
   const validCategories: Category[] = [
-    "Client Request", "Internal Team", "Billing / Invoice", "Sales Lead",
-    "Support Issue", "Waiting On Someone Else", "Newsletter / Marketing",
-    "Spam / Low Importance", "Security Alert", "Real Estate",
-    "Financial Update", "Other",
+    "Client Request",
+    "Internal Team",
+    "Billing / Invoice",
+    "Sales Lead",
+    "Support Issue",
+    "Waiting On Someone Else",
+    "Newsletter / Marketing",
+    "Spam / Low Importance",
+    "Security Alert",
+    "Real Estate",
+    "Financial Update",
+    "Other",
   ];
 
   if (!validPriorities.includes(obj.priority)) obj.priority = "Medium";
@@ -141,6 +149,43 @@ export async function classifyWithLocalAI(
   }
 }
 
+/**
+ * Helper to call OpenRouter with retry logic for 429 rate limits
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        // Exponential backoff: 2s, 4s, 8s...
+        const backoff = Math.pow(2, attempt) * 1000;
+        console.log(
+          `Rate limited. Retrying in ${backoff}ms (attempt ${attempt}/${maxRetries})...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, backoff));
+      }
+
+      const res = await fetch(url, options);
+
+      if (res.status === 429) {
+        lastError = new Error(`Rate limit exceeded (429)`);
+        continue;
+      }
+
+      return res;
+    } catch (err: any) {
+      lastError = err;
+      if (attempt === maxRetries) throw err;
+    }
+  }
+  throw lastError || new Error("Failed after retries");
+}
+
 export async function classifyWithAI(
   email: NormalizedEmail
 ): Promise<AIClassification> {
@@ -154,7 +199,7 @@ export async function classifyWithAI(
 
   const prompt = buildPrompt(email);
 
-  const res = await fetch(OPENROUTER_URL, {
+  const res = await fetchWithRetry(OPENROUTER_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -177,7 +222,7 @@ export async function classifyWithAI(
     throw new Error(`OpenRouter API error ${res.status}: ${err}`);
   }
 
-  const data = await res.json() as any;
+  const data = (await res.json()) as any;
   const content: string = data.choices?.[0]?.message?.content ?? "";
 
   try {
@@ -185,31 +230,31 @@ export async function classifyWithAI(
     return validateClassification(parsed);
   } catch {
     // Retry once — ask the model to fix its output
-    const retry = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: prompt },
-          { role: "assistant", content },
-          {
-            role: "user",
-            content:
-              "Your response was not valid JSON. Reply with ONLY the JSON object, no markdown.",
-          },
-        ],
-        temperature: 0,
-      }),
-    });
-    const retryData = await retry.json() as any;
-    const retryContent: string =
-      retryData.choices?.[0]?.message?.content ?? "{}";
     try {
+      const retry = await fetchWithRetry(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: prompt },
+            { role: "assistant", content },
+            {
+              role: "user",
+              content:
+                "Your response was not valid JSON. Reply with ONLY the JSON object, no markdown.",
+            },
+          ],
+          temperature: 0,
+        }),
+      });
+      const retryData = (await retry.json()) as any;
+      const retryContent: string =
+        retryData.choices?.[0]?.message?.content ?? "{}";
       return validateClassification(parseJSON(retryContent));
     } catch {
       // Fallback if still broken

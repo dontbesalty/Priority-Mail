@@ -141,6 +141,41 @@ export async function classifyWithLocalAI(
   }
 }
 
+/**
+ * Helper to call OpenRouter with retry logic for 429 rate limits
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3
+): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        // Exponential backoff: 2s, 4s, 8s...
+        const backoff = Math.pow(2, attempt) * 1000;
+        console.log(`Rate limited. Retrying in ${backoff}ms (attempt ${attempt}/${maxRetries})...`);
+        await new Promise(resolve => setTimeout(resolve, backoff));
+      }
+
+      const res = await fetch(url, options);
+      
+      if (res.status === 429) {
+        lastError = new Error(`Rate limit exceeded (429)`);
+        continue;
+      }
+
+      return res;
+    } catch (err: any) {
+      lastError = err;
+      if (attempt === maxRetries) throw err;
+    }
+  }
+  throw lastError || new Error("Failed after retries");
+}
+
 export async function classifyWithAI(
   email: NormalizedEmail
 ): Promise<AIClassification> {
@@ -154,7 +189,7 @@ export async function classifyWithAI(
 
   const prompt = buildPrompt(email);
 
-  const res = await fetch(OPENROUTER_URL, {
+  const res = await fetchWithRetry(OPENROUTER_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -185,7 +220,7 @@ export async function classifyWithAI(
     return validateClassification(parsed);
   } catch {
     // Retry once — ask the model to fix its output
-    const retry = await fetch(OPENROUTER_URL, {
+    const retry = await fetchWithRetry(OPENROUTER_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -212,6 +247,8 @@ export async function classifyWithAI(
     try {
       return validateClassification(parseJSON(retryContent));
     } catch {
+      // If we are rate limited during retry, we should really just fail this one.
+      // But OpenRouter is often picky about the JSON itself.
       // Fallback if still broken
       return {
         priority: "Medium",
