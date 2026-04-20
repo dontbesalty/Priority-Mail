@@ -48,31 +48,60 @@ export interface FetchOptions {
   query?: string;
   /** Max number of messages to fetch — defaults to FETCH_LIMIT env var or 20 */
   maxResults?: number;
+  /** Stop fetching if this message ID is encountered */
+  stopAtId?: string | null;
 }
 
 /**
  * Fetch emails from Gmail and return normalized objects.
  */
-export async function fetchEmails(limit = 20): Promise<NormalizedEmail[]> {
+export async function fetchEmails(limit = 20, options: FetchOptions = {}): Promise<NormalizedEmail[]> {
   const auth = buildOAuthClient();
   const gmail = google.gmail({ version: "v1", auth });
 
   // Compute timestamp for 24 hours ago (Unix seconds)
   const afterTimestamp = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
   const defaultQuery = `in:inbox is:unread after:${afterTimestamp}`;
-  const query = defaultQuery;
-  const maxResults = limit;
+  const query = options.query ?? defaultQuery;
+  const stopAtId = options.stopAtId;
 
-  console.log(`\n📬  Fetching up to ${maxResults} emails (query: "${query}")…`);
+  console.log(`\n📬  Fetching unread emails (query: "${query}")…`);
+  if (stopAtId) {
+    console.log(`   Will stop if message ID "${stopAtId}" is reached.`);
+  }
 
-  // 1. List matching message IDs
-  const listRes = await gmail.users.messages.list({
-    userId: "me",
-    q: query,
-    maxResults,
-  });
+  const allMessages: any[] = [];
+  let nextPageToken: string | undefined = undefined;
 
-  const messages = listRes.data.messages ?? [];
+  // 1. List matching message IDs (paginated)
+  do {
+    const listRes: any = await gmail.users.messages.list({
+      userId: "me",
+      q: query,
+      maxResults: Math.min(limit, 50), // Fetch in smaller chunks
+      pageToken: nextPageToken,
+    });
+
+    const messages = listRes.data.messages ?? [];
+    let foundStopId = false;
+
+    for (const msg of messages) {
+      if (stopAtId && msg.id === stopAtId) {
+        console.log(`   Found previously triaged message "${stopAtId}". Stopping fetch.`);
+        foundStopId = true;
+        break;
+      }
+      allMessages.push(msg);
+    }
+
+    if (foundStopId || allMessages.length >= limit) {
+      break;
+    }
+
+    nextPageToken = listRes.data.nextPageToken;
+  } while (nextPageToken);
+
+  const messages = allMessages.slice(0, limit);
   if (messages.length === 0) {
     console.log("✅  No messages matched the query.");
     return [];

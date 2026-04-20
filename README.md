@@ -66,6 +66,13 @@ docker compose up -d gmail-connector
 
 Navigate to [http://localhost:3000](http://localhost:3000)
 
+### 6. Email Retention Policy
+
+By default, Priority Mail purges emails from the database based on their priority:
+- **Low**: 48 hours
+- **Medium**: 1 week
+- **High**: 1 month
+
 > **Using Outlook instead of (or in addition to) Gmail?**  
 > See [`connectors/o365/README.md`](connectors/o365/README.md) for the Azure App Registration setup and one-time PKCE auth flow, then run:
 > ```bash
@@ -105,6 +112,7 @@ priorityMail/
 - **Security email protection** — 2FA / OTP emails are never sent to any AI
 - **User feedback loop** — users can approve, dismiss, or correct AI classifications
 - **No automatic actions** — every suggestion requires explicit user approval
+- **48-hour retention** — background cleanup process purges old emails automatically
 
 ## Environment Variables
 

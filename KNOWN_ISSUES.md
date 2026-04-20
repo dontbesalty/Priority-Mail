@@ -59,6 +59,10 @@ The Gmail connector is a one-shot job — it must be run manually to fetch new e
 The `is_unread` field is set when the email is fetched from Gmail. If the user reads the email in Gmail after it has been ingested, `is_unread` in the Priority Mail database will not update.  
 **Resolution:** Re-sync unread status on each connector run, or add a webhook/push notification integration.
 
+### Retention Policy Severing Task Links
+**Severity:** Low  
+The cleanup process purges emails based on priority (Low/48h, Med/1w, High/1m). Associated tasks remain in the `tasks` table but their `email_id` is set to `NULL`. This is intentional but means the original email content is no longer reachable from the task.
+
 ### No Deduplication Between Runs
 **Severity:** Low  
 Running the Gmail connector twice in a row will re-ingest the same emails. The `upsert` behavior updates classification fields, but re-processing adds unnecessary AI overhead.  

@@ -2,7 +2,7 @@
 
 # --- Priority Mail Dev Script ---
 # This script handles docker-compose build and up for the full stack.
-# Usage: ./dev.sh [--connectors]
+# Usage: ./dev.sh [--connectors] [--logs]
 
 # Default services
 CORE_SERVICES="postgres redis backend frontend"
@@ -11,6 +11,7 @@ CONNECTORS="gmail-connector o365-connector"
 # Parse flags
 WITH_CONNECTORS=false
 REBUILD=false
+SHOW_LOGS=false
 
 for arg in "$@"; do
   case $arg in
@@ -22,16 +23,28 @@ for arg in "$@"; do
       REBUILD=true
       shift
       ;;
+    --logs|-l)
+      SHOW_LOGS=true
+      shift
+      ;;
     --help|-h)
       echo "Usage: ./dev.sh [options]"
       echo "Options:"
       echo "  -c, --connectors  Build and run connectors (one-shot jobs)"
+      echo "  -l, --logs        Show recent connector logs from the database"
       echo "  -r, --rebuild     Force rebuild of images"
       echo "  -h, --help        Show this help message"
       exit 0
       ;;
   esac
 done
+
+# If --logs is passed, just show logs and exit
+if [ "$SHOW_LOGS" = true ]; then
+  echo "📋 Fetching recent connector logs..."
+  docker compose exec postgres psql -U pm_user -d prioritymail -c "SELECT source, level, message, timestamp FROM logs ORDER BY timestamp DESC LIMIT 20;"
+  exit 0
+fi
 
 SERVICES=$CORE_SERVICES
 if [ "$WITH_CONNECTORS" = true ]; then

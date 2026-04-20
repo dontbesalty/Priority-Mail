@@ -10,6 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - **Pushover Notifications**: Real-time push notifications for High-priority emails.
+  - Verified with a dedicated test script (`test-pushover.js`).
   - Optional notification threshold (High/Medium).
   - 15-minute global grace period to prevent alert floods.
   - Deep-links to individual emails from the notification.
@@ -21,6 +22,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Robust AI Retries**: Implemented exponential backoff (2s, 4s, 8s) for OpenRouter 429 rate limit errors in both Gmail and O365 connectors.
 - **Safer Defaults**: Set default concurrency to 1 and `AI_CALL_DELAY_MS` to 3000ms for both connectors to prevent rate limiting on free AI tiers.
 - Added `AI_DELAY_MS` configuration to Gmail and Outlook connectors to prevent rate limiting with free AI APIs by introducing a delay between triage calls.
+- **Priority-Based Email Retention**: Automated background cleanup process in the backend purges emails to keep the database lean (Low: 48h, Med: 1w, High: 1m). Logs activity to the system logs.
 - **Connector Run Health** — Added "Last Run" timestamps to the frontend dashboard.
   - New `GET /logs/last-run` backend endpoint to track the most recent successful triage for each source.
   - Connectors now log a completion message with metadata (email count) after a successful run.
@@ -29,6 +31,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - New "Approve" (✅) and "Dismiss" (❌) quick-action buttons on every email row in the inbox list.
   - Optimistic UI updates: emails are removed from the view instantly when actioned, before the backend sync completes.
   - Refactored inbox into a client-side `EmailList` component for real-time state management.
+
+### Added
+- **Fetch until seen**: Connectors now fetch emails until they encounter a message already present in the database, preventing missed emails during polling intervals with high volume.
+  - New `GET /emails/latest-id` backend endpoint to retrieve the most recent email ID.
+  - Gmail and O365 connectors now use pagination to loop back through history until the `latest-id` is reached or the 24-hour search window is exhausted.
 
 ### Fixed
 - Fixed "Last Run" status not updating when connectors find zero unread emails.

@@ -99,6 +99,22 @@ async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function getLatestId(): Promise<string | null> {
+  const backendUrl = process.env.BACKEND_URL;
+  if (!backendUrl) return null;
+
+  try {
+    const res = await fetch(`${backendUrl}/emails/latest-id?source=gmail`);
+    if (res.ok) {
+      const data = (await res.json()) as { id: string | null };
+      return data.id;
+    }
+  } catch (err) {
+    // Silent fail, fallback to null
+  }
+  return null;
+}
+
 async function main({ fetchLimit }: { fetchLimit?: number } = {}): Promise<void> {
   const startTime = Date.now();
   try {
@@ -109,7 +125,8 @@ async function main({ fetchLimit }: { fetchLimit?: number } = {}): Promise<void>
 
     const limit = fetchLimit ?? (process.env.FETCH_LIMIT ? parseInt(process.env.FETCH_LIMIT, 10) : 20);
 
-    const emails = await fetchEmails(limit);
+    const latestId = await getLatestId();
+    const emails = await fetchEmails(limit, { stopAtId: latestId });
     let triaged: TriagedEmail[] = [];
 
     if (emails.length === 0) {

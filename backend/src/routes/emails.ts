@@ -62,6 +62,30 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
+// ── GET /emails/latest-id ─────────────────────────────────────────────────────
+// Returns the most recently received email ID for a given source.
+router.get("/latest-id", async (req: Request, res: Response) => {
+  try {
+    const { source } = req.query;
+    if (!source) {
+      return res.status(400).json({ error: "source is required" });
+    }
+
+    const result = await pool.query(
+      "SELECT id FROM emails WHERE source = $1 ORDER BY received_at DESC LIMIT 1",
+      [source]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ id: null });
+    }
+
+    res.json({ id: result.rows[0].id });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /emails/:id ───────────────────────────────────────────────────────────
 router.get("/:id", async (req: Request, res: Response) => {
   try {

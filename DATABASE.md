@@ -171,6 +171,20 @@ The volume survives `docker compose down` and is only removed with `docker compo
 
 ---
 
+## Retention Policy
+
+The system automatically purges emails based on priority level to balance dashboard clarity with data retention.
+
+- **Trigger**: Every hour via a background task in the backend.
+- **Criteria**:
+  - **Low Priority**: 48 hours (`received_at < NOW() - INTERVAL '48 hours'`)
+  - **Medium Priority**: 1 week (`received_at < NOW() - INTERVAL '1 week'`)
+  - **High Priority**: 1 month (`received_at < NOW() - INTERVAL '1 month'`)
+  - **Unclassified**: 48 hours
+- **Side Effects**: Associated tasks in the `tasks` table will have their `email_id` set to `NULL` (via foreign key `ON DELETE SET NULL`), but the task itself remains.
+
+---
+
 ## Migrations
 
 There is currently no migration framework. The schema is applied via a single `schema.sql` file on startup using `CREATE TABLE IF NOT EXISTS`. 

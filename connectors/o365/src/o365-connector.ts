@@ -48,47 +48,75 @@ async function getAccessToken(): Promise<string> {
 
 // ── Email fetch ───────────────────────────────────────────────────────────────
 
-export async function fetchEmails(limit = 20): Promise<NormalizedEmail[]> {
+export interface FetchOptions {
+  /** Stop fetching if this message ID is encountered */
+  stopAtId?: string | null;
+  /** Custom OData filter */
+  filter?: string;
+}
+
+export async function fetchEmails(limit = 20, options: FetchOptions = {}): Promise<NormalizedEmail[]> {
   const accountEmail = process.env.OUTLOOK_ACCOUNT_EMAIL ?? "";
+  const stopAtId = options.stopAtId;
 
   // Compute ISO timestamp for 24 hours ago (Zulu/UTC)
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const isoThreshold = twentyFourHoursAgo.toISOString();
-  const filter = `isRead eq false and receivedDateTime ge ${isoThreshold}`;
+  const defaultFilter = `isRead eq false and receivedDateTime ge ${isoThreshold}`;
+  const filter = options.filter ?? defaultFilter;
 
   console.log(
-    `\n📬  Fetching up to ${limit} unread Outlook emails (${accountEmail || "account not set"})…`
+    `\n📬  Fetching unread Outlook emails (${accountEmail || "account not set"})…`
   );
   console.log(`   Filter: ${filter}`);
+  if (stopAtId) {
+    console.log(`   Will stop if message ID "${stopAtId}" is reached.`);
+  }
 
   const accessToken = await getAccessToken();
-
-  const params = new URLSearchParams({
+  const allMessages: any[] = [];
+  let nextLink: string | undefined = `${GRAPH_BASE}/me/mailFolders/inbox/messages?${new URLSearchParams({
     $filter: filter,
-    $top: String(limit),
+    $top: String(Math.min(limit, 50)),
     $select: [
       "id", "subject", "from", "toRecipients",
       "receivedDateTime", "bodyPreview", "body",
       "categories", "isRead", "conversationId",
     ].join(","),
     $orderby: "receivedDateTime desc",
-  });
+  })}`;
 
-  const res = await fetch(`${GRAPH_BASE}/me/mailFolders/inbox/messages?${params}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-  });
+  while (nextLink && allMessages.length < limit) {
+    const res = await fetch(nextLink, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Graph API error (${res.status}): ${err}`);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Graph API error (${res.status}): ${err}`);
+    }
+
+    const data = (await res.json()) as any;
+    const messages: any[] = data.value ?? [];
+    let foundStopId = false;
+
+    for (const msg of messages) {
+      if (stopAtId && msg.id === stopAtId) {
+        console.log(`   Found previously triaged message "${stopAtId}". Stopping fetch.`);
+        foundStopId = true;
+        break;
+      }
+      allMessages.push(msg);
+    }
+
+    if (foundStopId) break;
+    nextLink = data["@odata.nextLink"];
   }
 
-  const data = (await res.json()) as any;
-  const messages: any[] = data.value ?? [];
-
+  const messages = allMessages.slice(0, limit);
   console.log(`   Found ${messages.length} unread message(s). Normalizing…`);
 
   return messages.map(normalizeMessage);

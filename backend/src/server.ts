@@ -4,6 +4,7 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import { migrate } from "./db/client";
+import { cleanupOldEmails } from "./db/cleanup";
 import emailsRouter from "./routes/emails";
 import tasksRouter from "./routes/tasks";
 import logsRouter from "./routes/logs";
@@ -41,6 +42,14 @@ async function start(): Promise<void> {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀  Backend API running on port ${PORT}`);
   });
+
+  // ── Retention Policy Cleanup ────────────────────────────────────────────────
+  // Run once on startup, then every hour
+  const ONE_HOUR = 60 * 60 * 1000;
+  cleanupOldEmails().catch((err) => console.error("Initial cleanup failed:", err));
+  setInterval(() => {
+    cleanupOldEmails().catch((err) => console.error("Scheduled cleanup failed:", err));
+  }, ONE_HOUR);
 }
 
 start().catch((err) => {
