@@ -83,11 +83,18 @@ services:
     ports:
       - "3000:3000"
 
-  # ── Gmail Connector (one-shot) ───────────────────────────────────────────────
-  # Run with:  docker compose run --rm gmail-connector
+  # ── Gmail Connector ───────────────────────────────────────────────────────────
+  # One-shot mode (default):
+  #   docker compose run --rm gmail-connector
+  #
+  # Daemon mode (polls on a schedule):
+  #   Set POLL_INTERVAL_SECONDS in connectors/gmail/.env, then:
+  #   docker compose up -d gmail-connector
+  # ─────────────────────────────────────────────────────────────────────────────
   gmail-connector:
     build:
       context: ./connectors/gmail
+    restart: unless-stopped
     networks: [prioritymail]
     env_file:
       - ./connectors/gmail/.env
@@ -98,13 +105,18 @@ services:
       # Persist triaged.json output for debugging
       - ./connectors/gmail/output:/app/output
 
-  # ── O365 / Outlook Connector (one-shot) ──────────────────────────────────────
-  # One-time auth (run locally, not in Docker):
-  #   cd connectors/o365 && npm run auth
-  # Run with:  docker compose run --rm o365-connector
+  # ── O365 / Outlook Connector ──────────────────────────────────────────────────
+  # One-shot mode (default):
+  #   docker compose run --rm o365-connector
+  #
+  # Daemon mode (polls on a schedule):
+  #   Set POLL_INTERVAL_SECONDS in connectors/o365/.env, then:
+  #   docker compose up -d o365-connector
+  # ─────────────────────────────────────────────────────────────────────────────
   o365-connector:
     build:
       context: ./connectors/o365
+    restart: unless-stopped
     networks: [prioritymail]
     env_file:
       - ./connectors/o365/.env

@@ -53,17 +53,15 @@ export interface FetchOptions {
 /**
  * Fetch emails from Gmail and return normalized objects.
  */
-export async function fetchEmails(
-  options: FetchOptions = {}
-): Promise<NormalizedEmail[]> {
+export async function fetchEmails(limit = 20): Promise<NormalizedEmail[]> {
   const auth = buildOAuthClient();
   const gmail = google.gmail({ version: "v1", auth });
 
   // Compute timestamp for 24 hours ago (Unix seconds)
   const afterTimestamp = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
   const defaultQuery = `in:inbox is:unread after:${afterTimestamp}`;
-  const query = options.query ?? defaultQuery;
-  const maxResults = options.maxResults ?? parseInt(FETCH_LIMIT ?? "20", 10);
+  const query = defaultQuery;
+  const maxResults = limit;
 
   console.log(`\n📬  Fetching up to ${maxResults} emails (query: "${query}")…`);
 

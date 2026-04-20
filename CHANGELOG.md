@@ -9,6 +9,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **Scheduled Connector Polling**: Optional daemon mode for both Gmail and Outlook connectors via `POLL_INTERVAL_SECONDS`.
+- **AI Rate Limiting**: Added `AI_CALL_DELAY_MS` to serialize and throttle AI calls, replacing the older `AI_DELAY_MS` with a more robust implementation that forces concurrency to 1 when active.
 - Added `AI_DELAY_MS` configuration to Gmail and Outlook connectors to prevent rate limiting with free AI APIs by introducing a delay between triage calls.
 - **Connector Run Health** — Added "Last Run" timestamps to the frontend dashboard.
   - New `GET /logs/last-run` backend endpoint to track the most recent successful triage for each source.

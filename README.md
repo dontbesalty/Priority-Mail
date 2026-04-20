@@ -51,10 +51,15 @@ Use the provided development script to manage the environment:
 
 ### 4. Fetch and triage emails
 
-To run the connectors (Gmail/Outlook) as one-shot jobs:
-
+**One-shot mode (manual run):**
 ```bash
 ./dev.sh --connectors
+```
+
+**Daemon mode (scheduled polling):**
+Set `POLL_INTERVAL_SECONDS=300` in your connector `.env` file, then:
+```bash
+docker compose up -d gmail-connector
 ```
 
 ### 5. Open the dashboard

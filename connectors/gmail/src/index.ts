@@ -87,24 +87,72 @@ async function postToBackend(emails: TriagedEmail[]): Promise<void> {
   }
 }
 
-async function main(): Promise<void> {
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function main({ fetchLimit }: { fetchLimit?: number } = {}): Promise<void> {
   try {
-    const emails = await fetchEmails();
+    const aiDelay = process.env.AI_CALL_DELAY_MS
+      ? parseInt(process.env.AI_CALL_DELAY_MS, 10)
+      : 0;
+    const concurrency = aiDelay > 0 ? 1 : 3;
+
+    const limit = fetchLimit ?? (process.env.FETCH_LIMIT ? parseInt(process.env.FETCH_LIMIT, 10) : 20);
+
+    const emails = await fetchEmails(limit);
     if (emails.length === 0) {
       console.log("✅  No unread emails to process.");
       return;
     }
 
     console.log("\n🔍  Running triage pipeline…\n");
-    const triaged = await triageBatch(emails);
+    const triaged = await triageBatch(emails, {
+      concurrency,
+      aiCallDelayMs: aiDelay,
+    });
 
     printSummary(triaged);
     writeOutput(triaged);
     await postToBackend(triaged);
   } catch (err: any) {
     console.error("\n❌  Error:", err.message ?? err);
-    process.exit(1);
+    // In daemon mode, we don't want to exit on a single error
+    if (!process.env.POLL_INTERVAL_SECONDS) {
+      process.exit(1);
+    }
   }
 }
 
-main();
+async function run(): Promise<void> {
+  const pollIntervalSec = process.env.POLL_INTERVAL_SECONDS
+    ? parseInt(process.env.POLL_INTERVAL_SECONDS, 10)
+    : null;
+
+  if (!pollIntervalSec) {
+    // One-shot mode (existing behavior)
+    await main();
+    return;
+  }
+
+  // Daemon mode
+  console.log(`⏱️  Polling mode: running every ${pollIntervalSec}s`);
+
+  let isFirstRun = true;
+  while (true) {
+    const fetchLimit = isFirstRun
+      ? (process.env.FETCH_LIMIT ? parseInt(process.env.FETCH_LIMIT, 10) : 20)
+      : (process.env.POLL_FETCH_LIMIT ? parseInt(process.env.POLL_FETCH_LIMIT, 10) : 5);
+
+    await main({ fetchLimit });
+    isFirstRun = false;
+
+    console.log(`\n💤  Next poll in ${pollIntervalSec}s…`);
+    await sleep(pollIntervalSec * 1000);
+  }
+}
+
+run().catch(err => {
+  console.error("❌  Fatal error:", err.message ?? err);
+  process.exit(1);
+});

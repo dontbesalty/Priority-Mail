@@ -48,8 +48,7 @@ async function getAccessToken(): Promise<string> {
 
 // ── Email fetch ───────────────────────────────────────────────────────────────
 
-export async function fetchEmails(): Promise<NormalizedEmail[]> {
-  const limit = parseInt(process.env.FETCH_LIMIT ?? "20");
+export async function fetchEmails(limit = 20): Promise<NormalizedEmail[]> {
   const accountEmail = process.env.OUTLOOK_ACCOUNT_EMAIL ?? "";
 
   // Compute ISO timestamp for 24 hours ago (Zulu/UTC)

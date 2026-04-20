@@ -35,6 +35,13 @@ export interface TriagedEmail {
 
 const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
 
+/**
+ * Simple sleep helper
+ */
+export async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function triageEmail(email: NormalizedEmail): Promise<TriagedEmail> {
   const rules = applyRules(email);
 
@@ -126,7 +133,10 @@ function toTriagedEmail(
  */
 export async function triageBatch(
   emails: NormalizedEmail[],
-  { concurrency = 3 }: { concurrency?: number } = {}
+  {
+    concurrency = 3,
+    aiCallDelayMs = 0,
+  }: { concurrency?: number; aiCallDelayMs?: number } = {}
 ): Promise<TriagedEmail[]> {
   const results: TriagedEmail[] = [];
   let idx = 0;
@@ -163,9 +173,8 @@ export async function triageBatch(
         }
 
         // Add delay between calls to respect rate limits if needed
-        const delayMs = parseInt(process.env.AI_DELAY_MS || "0", 10);
-        if (delayMs > 0 && idx < emails.length) {
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        if (aiCallDelayMs > 0 && idx < emails.length) {
+          await sleep(aiCallDelayMs);
         }
       } catch (err: any) {
         const errorMsg = `❌ Failed to triage "${email.subject}": ${err.message}`;
